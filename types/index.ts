@@ -150,3 +150,92 @@ export interface AnalysisContext {
   repository: Repository;
   issue: Issue;
 }
+
+// Database record types
+export interface AnalysisRecord {
+  id: string;
+  user_id: string;
+  repository_id: string;
+  repository_full_name: string;
+  repository_owner: string;
+  repository_name: string;
+  issue_number: number;
+  issue_title: string;
+  status:
+    | 'queued'
+    | 'initializing'
+    | 'indexing'
+    | 'ready_for_analysis'
+    | 'failed'
+    | 'completed';
+  current_stage:
+    | 'issue_context'
+    | 'issue_comments'
+    | 'repository_tree'
+    | 'file_filtering'
+    | 'repository_fingerprint'
+    | 'ready';
+  error_message: string | null;
+  total_files: number;
+  filtered_files: number;
+  fingerprint: RepositoryFingerprint | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+}
+
+export interface RepositoryFileRecord {
+  id: string;
+  analysis_id: string;
+  path: string;
+  file_type: string;
+  size: number;
+  sha: string;
+  language: string;
+  is_ignored: boolean;
+  created_at: string;
+}
+
+export interface AnalysisArtifactRecord {
+  id: string;
+  analysis_id: string;
+  artifact_type: string;
+  data: Record<string, unknown>;
+  created_at: string;
+}
+
+// Analysis initialization types
+export interface IssueContext {
+  number: number;
+  title: string;
+  body: string;
+  state: string;
+  labels: string[];
+  author: string;
+  createdAt: string;
+  updatedAt: string;
+  commentsCount: number;
+  htmlUrl: string;
+}
+
+export interface IssueComment {
+  id: number;
+  author: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  htmlUrl: string;
+}
+
+export interface RepositoryFingerprint {
+  primaryLanguage: string | null;
+  framework: string | null;
+  packageManager: string | null;
+  projectType: string;
+  configFiles: string[];
+  sourceDirectories: string[];
+  testDirectories: string[];
+  languages: string[];
+  totalFiles: number;
+  activeFiles: number;
+}

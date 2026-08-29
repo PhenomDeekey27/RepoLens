@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { RepositorySelector } from '@/components/analysis/RepositorySelector';
 import { IssueSelector } from '@/components/analysis/IssueSelector';
 import { Button } from '@/components/ui/button';
 import { Repository, Issue, GitHubUser } from '@/types';
 import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 
 export default function NewAnalysisPage() {
   const router = useRouter();
@@ -22,6 +22,7 @@ export default function NewAnalysisPage() {
   const [issuesError, setIssuesError] = useState<string | null>(null);
   const [user, setUser] = useState<GitHubUser | null>(null);
   const [authExpired, setAuthExpired] = useState(false);
+  const [startingAnalysis, setStartingAnalysis] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -102,9 +103,28 @@ export default function NewAnalysisPage() {
     setIssues([]);
   }, []);
 
-  const handleStartAnalysis = () => {
-    if (selectedRepository && selectedIssue) {
-      const analysisId = `analysis-${Date.now()}`;
+  const handleStartAnalysis = async () => {
+    if (!selectedRepository || !selectedIssue || startingAnalysis) return;
+
+    setStartingAnalysis(true);
+
+    try {
+      const createResponse = await fetch('/api/analyses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          repository: selectedRepository,
+          issue: selectedIssue,
+        }),
+      });
+
+      if (!createResponse.ok) {
+        const errData = await createResponse.json();
+        throw new Error(errData.error || 'Failed to create analysis');
+      }
+
+      const { analysisId } = await createResponse.json();
+
       localStorage.setItem(
         'analysis-selection',
         JSON.stringify({
@@ -112,7 +132,22 @@ export default function NewAnalysisPage() {
           issue: selectedIssue,
         })
       );
+
+      const runResponse = await fetch(`/api/analyses/${analysisId}/run`, {
+        method: 'POST',
+      });
+
+      if (!runResponse.ok) {
+        const errData = await runResponse.json();
+        console.error('Failed to start analysis runner:', errData.error);
+      }
+
+      toast.success('Analysis created! Initializing investigation...');
       router.push(`/analysis/${analysisId}`);
+    } catch (error) {
+      const err = error as Error;
+      toast.error(err.message || 'Failed to start analysis');
+      setStartingAnalysis(false);
     }
   };
 
@@ -179,8 +214,16 @@ export default function NewAnalysisPage() {
             <Button
               className="gradient-primary text-white hover:gradient-primary-hover font-medium"
               onClick={handleStartAnalysis}
+              disabled={startingAnalysis}
             >
-              Start Analysis
+              {startingAnalysis ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Creating Analysis...
+                </span>
+              ) : (
+                'Start Analysis'
+              )}
             </Button>
           </div>
         )}

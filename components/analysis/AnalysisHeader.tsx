@@ -6,6 +6,16 @@ interface AnalysisHeaderProps {
 }
 
 export function AnalysisHeader({ analysis }: AnalysisHeaderProps) {
+  const statusConfig = {
+    completed: { label: 'Index Ready', variant: 'default' as const },
+    indexing: { label: 'Indexing...', variant: 'secondary' as const },
+    analyzing: { label: 'Analyzing...', variant: 'secondary' as const },
+    failed: { label: 'Failed', variant: 'destructive' as const },
+    idle: { label: 'Pending', variant: 'outline' as const },
+  };
+
+  const config = statusConfig[analysis.status] || statusConfig.idle;
+
   return (
     <div className="mb-6">
       <div className="flex items-center gap-2 mb-2">
@@ -23,15 +33,17 @@ export function AnalysisHeader({ analysis }: AnalysisHeaderProps) {
       </h1>
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <span className="text-xs font-mono text-on-surface-variant">Branch:</span>
-          <span className="text-xs font-mono text-on-surface">main</span>
-        </div>
+        {analysis.repository.defaultBranch && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-mono text-on-surface-variant">Branch:</span>
+            <span className="text-xs font-mono text-on-surface">{analysis.repository.defaultBranch}</span>
+          </div>
+        )}
         <Badge
-          variant={analysis.status === 'completed' ? 'default' : 'secondary'}
+          variant={config.variant}
           className="text-xs font-mono"
         >
-          {analysis.status === 'completed' ? 'Completed' : 'Analyzing'}
+          {config.label}
         </Badge>
       </div>
     </div>
