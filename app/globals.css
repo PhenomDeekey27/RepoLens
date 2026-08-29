@@ -1,26 +1,229 @@
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@custom-variant dark (&:is(.dark *));
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-mono);
+  --font-heading: var(--font-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* RepoLens Design System Tokens */
+  --color-surface: #0b141c;
+  --color-surface-dim: #0b141c;
+  --color-surface-bright: #313a43;
+  --color-surface-container-lowest: #060f16;
+  --color-surface-container-low: #141c24;
+  --color-surface-container: #182028;
+  --color-surface-container-high: #222b33;
+  --color-surface-container-highest: #2d363e;
+  --color-on-surface: #dae3ee;
+  --color-on-surface-variant: #c0c7d4;
+  --color-outline: #8b919d;
+  --color-outline-variant: #414752;
+  --color-primary-default: #a2c9ff;
+  --color-on-primary: #00315c;
+  --color-primary-container: #58a6ff;
+  --color-on-primary-container: #003a6b;
+  --color-secondary-default: #c2c7d0;
+  --color-secondary-container: #42474f;
+  --color-tertiary: #ffba42;
+  --color-tertiary-container: #da9600;
+  --color-error-default: #ffb4ab;
+  --color-error-container: #93000a;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+:root {
+  /* RepoLens Design System - Light theme fallback (dark-first app) */
+  --background: #0b141c;
+  --foreground: #dae3ee;
+  --card: #141c24;
+  --card-foreground: #dae3ee;
+  --popover: #182028;
+  --popover-foreground: #dae3ee;
+  --primary: #a2c9ff;
+  --primary-foreground: #00315c;
+  --secondary: #42474f;
+  --secondary-foreground: #dae3ee;
+  --muted: #222b33;
+  --muted-foreground: #c0c7d4;
+  --accent: #222b33;
+  --accent-foreground: #dae3ee;
+  --destructive: #ffb4ab;
+  --destructive-foreground: #060f16;
+  --border: #414752;
+  --input: #414752;
+  --ring: #a2c9ff;
+  --chart-1: #58a6ff;
+  --chart-2: #ffba42;
+  --chart-3: #a2c9ff;
+  --chart-4: #c2c7d0;
+  --chart-5: #ffb4ab;
+  --radius: 0.375rem;
+  --sidebar: #141c24;
+  --sidebar-foreground: #dae3ee;
+  --sidebar-primary: #a2c9ff;
+  --sidebar-primary-foreground: #00315c;
+  --sidebar-accent: #222b33;
+  --sidebar-accent-foreground: #dae3ee;
+  --sidebar-border: #414752;
+  --sidebar-ring: #a2c9ff;
+}
+
+.dark {
+  /* RepoLens Design System - Dark theme (primary) */
+  --background: #0b141c;
+  --foreground: #dae3ee;
+  --card: #141c24;
+  --card-foreground: #dae3ee;
+  --popover: #182028;
+  --popover-foreground: #dae3ee;
+  --primary: #a2c9ff;
+  --primary-foreground: #00315c;
+  --secondary: #42474f;
+  --secondary-foreground: #dae3ee;
+  --muted: #222b33;
+  --muted-foreground: #c0c7d4;
+  --accent: #222b33;
+  --accent-foreground: #dae3ee;
+  --destructive: #ffb4ab;
+  --destructive-foreground: #060f16;
+  --border: #414752;
+  --input: #414752;
+  --ring: #a2c9ff;
+  --chart-1: #58a6ff;
+  --chart-2: #ffba42;
+  --chart-3: #a2c9ff;
+  --chart-4: #c2c7d0;
+  --chart-5: #ffb4ab;
+  --sidebar: #141c24;
+  --sidebar-foreground: #dae3ee;
+  --sidebar-primary: #a2c9ff;
+  --sidebar-primary-foreground: #00315c;
+  --sidebar-accent: #222b33;
+  --sidebar-accent-foreground: #dae3ee;
+  --sidebar-border: #414752;
+  --sidebar-ring: #a2c9ff;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
   }
+  body {
+    @apply bg-background text-foreground;
+  }
+
+  
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Custom utility classes for RepoLens design system */
+@layer utilities {
+  .text-surface { color: #0b141c; }
+  .text-surface-dim { color: #0b141c; }
+  .text-surface-bright { color: #313a43; }
+  .text-surface-container-lowest { color: #060f16; }
+  .text-surface-container-low { color: #141c24; }
+  .text-surface-container { color: #182028; }
+  .text-surface-container-high { color: #222b33; }
+  .text-surface-container-highest { color: #2d363e; }
+  .text-on-surface { color: #dae3ee; }
+  .text-on-surface-variant { color: #c0c7d4; }
+  .text-outline { color: #8b919d; }
+  .text-outline-variant { color: #414752; }
+  .text-primary-default { color: #a2c9ff; }
+  .text-on-primary { color: #00315c; }
+  .text-primary-container { color: #58a6ff; }
+  .text-on-primary-container { color: #003a6b; }
+  .text-secondary-default { color: #c2c7d0; }
+  .text-secondary-container { color: #42474f; }
+  .text-tertiary { color: #ffba42; }
+  .text-tertiary-container { color: #da9600; }
+  .text-error-default { color: #ffb4ab; }
+  .text-error-container { color: #93000a; }
+
+  .bg-surface { background-color: #0b141c; }
+  .bg-surface-dim { background-color: #0b141c; }
+  .bg-surface-bright { background-color: #313a43; }
+  .bg-surface-container-lowest { background-color: #060f16; }
+  .bg-surface-container-low { background-color: #141c24; }
+  .bg-surface-container { background-color: #182028; }
+  .bg-surface-container-high { background-color: #222b33; }
+  .bg-surface-container-highest { background-color: #2d363e; }
+  .bg-on-surface { background-color: #dae3ee; }
+  .bg-on-surface-variant { background-color: #c0c7d4; }
+  .bg-outline { background-color: #8b919d; }
+  .bg-outline-variant { background-color: #414752; }
+  .bg-primary-default { background-color: #a2c9ff; }
+  .bg-on-primary { background-color: #00315c; }
+  .bg-primary-container { background-color: #58a6ff; }
+  .bg-on-primary-container { background-color: #003a6b; }
+  .bg-secondary-default { background-color: #c2c7d0; }
+  .bg-secondary-container { background-color: #42474f; }
+  .bg-tertiary { background-color: #ffba42; }
+  .bg-tertiary-container { background-color: #da9600; }
+  .bg-error-default { background-color: #ffb4ab; }
+  .bg-error-container { background-color: #93000a; }
+
+  .border-surface { border-color: #0b141c; }
+  .border-surface-dim { border-color: #0b141c; }
+  .border-surface-bright { border-color: #313a43; }
+  .border-surface-container-lowest { border-color: #060f16; }
+  .border-surface-container-low { border-color: #141c24; }
+  .border-surface-container { border-color: #182028; }
+  .border-surface-container-high { border-color: #222b33; }
+  .border-surface-container-highest { border-color: #2d363e; }
+  .border-on-surface { border-color: #dae3ee; }
+  .border-on-surface-variant { border-color: #c0c7d4; }
+  .border-outline { border-color: #8b919d; }
+  .border-outline-variant { border-color: #414752; }
+  .border-primary-default { border-color: #a2c9ff; }
+  .border-on-primary { border-color: #00315c; }
+  .border-primary-container { border-color: #58a6ff; }
+  .border-on-primary-container { border-color: #003a6b; }
+  .border-secondary-default { border-color: #c2c7d0; }
+  .border-secondary-container { border-color: #42474f; }
+  .border-tertiary { border-color: #ffba42; }
+  .border-tertiary-container { border-color: #da9600; }
+  .border-error-default { border-color: #ffb4ab; }
+  .border-error-container { border-color: #93000a; }
 }
