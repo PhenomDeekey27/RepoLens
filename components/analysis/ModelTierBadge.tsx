@@ -49,17 +49,17 @@ const statusConfig = {
   },
   pending: {
     label: 'Queued',
-    dotColor: 'bg-surface-bright',
+    dotColor: 'bg-surface-bright/50',
     animate: false,
   },
   completed: {
-    label: 'Complete',
+    label: 'Done',
     dotColor: 'bg-green-400',
     animate: false,
   },
   error: {
     label: 'Failed',
-    dotColor: 'bg-error-default',
+    dotColor: 'bg-red-400',
     animate: false,
   },
 };
@@ -132,22 +132,20 @@ export function ModelTierBadge({
 }
 
 interface ModelTierPipelineProps {
-  activeTier?: 'fast' | 'balanced' | 'deep' | null;
-  completedTiers?: ('fast' | 'balanced' | 'deep')[];
+  activeModel?: string | null;
+  fallbackChain?: string[];
+  currentModel?: string;
   provider?: string;
-  models?: Record<string, string>;
   className?: string;
 }
 
 export function ModelTierPipeline({
-  activeTier,
-  completedTiers = [],
+  activeModel,
+  fallbackChain = [],
+  currentModel,
   provider,
-  models,
   className,
 }: ModelTierPipelineProps) {
-  const tiers: Array<'fast' | 'balanced' | 'deep'> = ['fast', 'balanced', 'deep'];
-
   return (
     <div className={cn('space-y-2', className)}>
       <div className="flex items-center gap-2 mb-3">
@@ -161,24 +159,47 @@ export function ModelTierPipeline({
         )}
       </div>
 
-      <div className="grid grid-cols-3 gap-2">
-        {tiers.map((tier) => {
-          const isActive = activeTier === tier;
-          const isCompleted = completedTiers.includes(tier);
-          const status = isActive ? 'active' : isCompleted ? 'completed' : 'pending';
+      <div className="flex items-center gap-2 flex-wrap">
+        {fallbackChain.map((model, idx) => {
+          const isCurrent = model === currentModel;
+          const isUsed = currentModel ? fallbackChain.indexOf(currentModel) >= idx : false;
+          const isFailed = currentModel ? fallbackChain.indexOf(currentModel) >= 0 && idx > fallbackChain.indexOf(currentModel) : false;
 
           return (
-            <ModelTierBadge
-              key={tier}
-              tier={tier}
-              status={status}
-              provider={provider}
-              model={models?.[tier]}
-              showDetails={isActive || isCompleted}
-            />
+            <div
+              key={model}
+              className={cn(
+                'flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-mono transition-all duration-300',
+                isCurrent && 'bg-green-500/10 border-green-500/30 text-green-400 shadow-[0_0_12px_rgba(34,197,94,0.15)]',
+                isUsed && !isCurrent && 'bg-green-500/5 border-green-500/20 text-green-400/50',
+                isFailed && 'bg-red-500/5 border-red-500/20 text-red-400/50 line-through',
+                !isCurrent && !isUsed && !isFailed && 'bg-surface-container border-outline-variant/30 text-on-surface-variant/50'
+              )}
+            >
+              <span className={cn(
+                'w-1.5 h-1.5 rounded-full',
+                isCurrent && 'bg-green-400 animate-pulse',
+                isUsed && !isCurrent && 'bg-green-400/50',
+                isFailed && 'bg-red-400/50',
+                !isCurrent && !isUsed && !isFailed && 'bg-surface-bright/30'
+              )} />
+              <span className="truncate max-w-[200px]">{model}</span>
+              {isCurrent && (
+                <span className="text-[10px] text-green-400">active</span>
+              )}
+              {isFailed && (
+                <span className="text-[10px] text-red-400">failed</span>
+              )}
+            </div>
           );
         })}
       </div>
+
+      {activeModel && (
+        <p className="text-[10px] font-mono text-on-surface-variant mt-2">
+          Using: <span className="text-on-surface">{activeModel}</span>
+        </p>
+      )}
     </div>
   );
 }

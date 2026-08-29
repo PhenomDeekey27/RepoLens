@@ -140,15 +140,12 @@ export async function runRelevantFileDiscovery(analysisId: string): Promise<void
     const fingerprint = fingerprintData as unknown as RepositoryFingerprint;
     const repositoryFiles = await getRepositoryFiles(analysisId);
 
-    const modelConfig = analysis.model_config as ModelTierConfig | undefined;
-
     console.log(`[relevant-files] Building deterministic candidates from ${repositoryFiles.length} files`);
 
     const candidates = deterministicPreFilter(repositoryFiles, issue, fingerprint);
     console.log(`[relevant-files] Deterministic filter produced ${candidates.length} candidates`);
 
-    const tierInfo = getTierInfo('fast', modelConfig);
-    const contextLimit = tierInfo.contextLimit;
+    const contextLimit = 128000;
 
     const relevantFileContext: RelevantFileContext = {
       issue,
@@ -168,21 +165,20 @@ export async function runRelevantFileDiscovery(analysisId: string): Promise<void
     const builtContext = buildRelevantFileContext(relevantFileContext);
     console.log(`[relevant-files] Estimated tokens: ${builtContext.estimatedTokens}, context reduced: ${builtContext.contextReduced}`);
 
-    console.log(`[relevant-files] Calling ${tierInfo.provider} model: ${tierInfo.model}`);
+    const models = getModels();
+    console.log(`[relevant-files] Trying models: ${models.join(' -> ')}`);
 
     const startTime = Date.now();
-    const response = await runWithTier({
-      tier: 'fast',
+    const response = await runWithFallback({
       task: 'relevant_file_discovery',
       messages: builtContext.messages,
       temperature: 0.3,
       maxTokens: 2048,
       responseFormat: { type: 'json_object' },
-      modelConfig,
     });
     const duration = Date.now() - startTime;
 
-    console.log(`[relevant-files] AI response received in ${duration}ms`);
+    console.log(`[relevant-files] AI response received in ${duration}ms from model: ${response.model}`);
 
     const parsedResults = parseAIResponse(response.content);
     console.log(`[relevant-files] Parsed ${parsedResults.length} file results`);
@@ -198,9 +194,8 @@ export async function runRelevantFileDiscovery(analysisId: string): Promise<void
       ...f,
       reason: parsedResults.find((r) => r.path === f.path)?.reason || '',
       confidence: parsedResults.find((r) => r.path === f.path)?.confidence || f.relevanceScore,
-      provider: tierInfo.provider,
-      model: tierInfo.model,
-      tier: tierInfo.tier,
+      provider: response.provider,
+      model: response.model,
       source: 'ai' as const,
     }));
 
@@ -211,9 +206,8 @@ export async function runRelevantFileDiscovery(analysisId: string): Promise<void
       rejectedPaths,
       contextReduced: builtContext.contextReduced,
       estimatedTokens: builtContext.estimatedTokens,
-      provider: tierInfo.provider,
-      model: tierInfo.model,
-      tier: tierInfo.tier,
+      provider: response.provider,
+      model: response.model,
       duration,
       usage: response.usage,
     } as unknown as Record<string, unknown>);

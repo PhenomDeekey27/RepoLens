@@ -221,8 +221,8 @@ export default function InvestigationPage() {
 
   useEffect(() => {
     if (!record) return;
-    const isRunning = ['queued', 'initializing', 'indexing', 'relevant_file_discovery'].includes(record.status);
-    if (!isRunning) return;
+    const shouldPoll = ['queued', 'initializing', 'indexing', 'relevant_file_discovery', 'relevant_files_fetch', 'ready_for_analysis'].includes(record.status);
+    if (!shouldPoll) return;
 
     let cancelled = false;
     const poll = async () => {
@@ -231,15 +231,19 @@ export default function InvestigationPage() {
         if (cancelled || !response.ok) return;
         const data = await response.json();
         if (cancelled) return;
+
+        const prevStatus = prevStatusRef.current;
         setRecord(data.analysis);
 
-        if (prevStatusRef.current && prevStatusRef.current !== data.analysis.status) {
+        if (prevStatus && prevStatus !== data.analysis.status) {
           if (data.analysis.status === 'ready_for_analysis') {
             toast.success('Repository index ready!');
           } else if (data.analysis.status === 'relevant_files_ready') {
             toast.success('Relevant files discovered!');
           } else if (data.analysis.status === 'failed') {
             toast.error(data.analysis.error_message || 'Analysis failed');
+          } else if (data.analysis.status === 'relevant_file_discovery') {
+            toast.info('AI discovery in progress...');
           }
         }
         prevStatusRef.current = data.analysis.status;
@@ -317,10 +321,11 @@ export default function InvestigationPage() {
     }
   };
 
-  const isRunning = ['queued', 'initializing', 'indexing', 'relevant_file_discovery'].includes(record?.status || '');
-  const isComplete = record?.status === 'ready_for_analysis' || record?.status === 'relevant_files_ready';
+  const isRunning = ['queued', 'initializing', 'indexing', 'relevant_file_discovery', 'relevant_files_fetch'].includes(record?.status || '');
+  const isComplete = record?.status === 'relevant_files_ready';
   const isFailed = record?.status === 'failed';
   const isDiscoveryReady = record?.status === 'ready_for_analysis' || record?.status === 'failed';
+  const showProgress = isRunning || isFailed || record?.status === 'ready_for_analysis';
 
   return (
     <AppShell user={user}>
@@ -351,38 +356,40 @@ export default function InvestigationPage() {
             </div>
           )}
 
-          {!loading && !error && (isRunning || isFailed) && record && (
+          {!loading && !error && showProgress && record && (
             <ProgressOverlay record={record} />
           )}
 
-          {!loading && !error && isComplete && record && (
+          {!loading && !error && (isDiscoveryReady || isComplete) && record && (
             <>
               <AnalysisHeader analysis={analysis} />
 
-              <div className="mb-6 p-4 rounded-lg glass border border-green-500/30 bg-green-500/5">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="w-2 h-2 rounded-full bg-green-500" />
-                  <span className="text-sm font-semibold text-on-surface">
-                    {record.status === 'relevant_files_ready' ? 'Relevant Files Ready' : 'Repository Index Ready'}
-                  </span>
-                </div>
-                {record.fingerprint && (
-                  <div className="flex flex-wrap gap-4 text-xs font-mono text-on-surface-variant mt-2">
-                    {record.fingerprint.primaryLanguage && <span>{record.fingerprint.primaryLanguage}</span>}
-                    {record.fingerprint.framework && <span>{record.fingerprint.framework}</span>}
-                    {record.fingerprint.packageManager && <span>{record.fingerprint.packageManager}</span>}
-                    <span>{record.filtered_files.toLocaleString()} files indexed</span>
+              {(isComplete || record.status === 'ready_for_analysis') && (
+                <div className="mb-6 p-4 rounded-lg glass border border-green-500/30 bg-green-500/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-2 h-2 rounded-full bg-green-500" />
+                    <span className="text-sm font-semibold text-on-surface">
+                      {record.status === 'relevant_files_ready' ? 'Relevant Files Ready' : 'Repository Index Ready'}
+                    </span>
                   </div>
-                )}
-              </div>
+                  {record.fingerprint && (
+                    <div className="flex flex-wrap gap-4 text-xs font-mono text-on-surface-variant mt-2">
+                      {record.fingerprint.primaryLanguage && <span>{record.fingerprint.primaryLanguage}</span>}
+                      {record.fingerprint.framework && <span>{record.fingerprint.framework}</span>}
+                      {record.fingerprint.packageManager && <span>{record.fingerprint.packageManager}</span>}
+                      <span>{record.filtered_files.toLocaleString()} files indexed</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {isDiscoveryReady && (
                 <div className="mb-6">
                   <ModelTierPipeline
-                    activeTier={record.status === 'relevant_file_discovery' ? 'fast' : null}
-                    completedTiers={record.status === 'relevant_files_ready' ? ['fast'] : []}
+                    activeModel={record.status === 'relevant_file_discovery' ? (record.ai_model || null) : null}
+                    fallbackChain={['nemotron-3.5-lightning-free', 'ling-3.0-flash-fin-free', 'mimo-v2.5-free', 'muse-spark-1.2-free']}
+                    currentModel={record.ai_model || undefined}
                     provider={record.ai_provider || 'opencode-zen'}
-                    models={{ fast: record.ai_model || '' }}
                   />
                   <div className="mt-3">
                     <Button
