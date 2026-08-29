@@ -31,7 +31,14 @@ export interface Issue {
   repositoryId: string;
 }
 
-export type AnalysisStatus = 'idle' | 'indexing' | 'analyzing' | 'completed' | 'failed';
+export type AnalysisStatus =
+  | 'idle'
+  | 'indexing'
+  | 'analyzing'
+  | 'completed'
+  | 'failed'
+  | 'relevant_file_discovery'
+  | 'relevant_files_ready';
 
 export type AnalysisStage =
   | 'REPOSITORY'
@@ -53,6 +60,12 @@ export interface RelevantFile {
   language: string;
   relevanceScore: number;
   description: string;
+  reason?: string;
+  confidence?: number;
+  provider?: string;
+  model?: string;
+  tier?: string;
+  source?: 'ai' | 'deterministic';
 }
 
 export interface CodeLine {
@@ -166,6 +179,8 @@ export interface AnalysisRecord {
     | 'initializing'
     | 'indexing'
     | 'ready_for_analysis'
+    | 'relevant_file_discovery'
+    | 'relevant_files_ready'
     | 'failed'
     | 'completed';
   current_stage:
@@ -174,11 +189,25 @@ export interface AnalysisRecord {
     | 'repository_tree'
     | 'file_filtering'
     | 'repository_fingerprint'
-    | 'ready';
+    | 'ready'
+    | 'relevant_files_discovery'
+    | 'relevant_files_fetch'
+    | 'relevant_files_complete';
   error_message: string | null;
   total_files: number;
   filtered_files: number;
   fingerprint: RepositoryFingerprint | null;
+  ai_provider: string | null;
+  ai_model: string | null;
+  ai_tier: string | null;
+  ai_tokens_input: number | null;
+  ai_tokens_output: number | null;
+  ai_duration_ms: number | null;
+  model_config: {
+    fast: string;
+    balanced: string;
+    deep: string;
+  } | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -199,7 +228,13 @@ export interface RepositoryFileRecord {
 export interface AnalysisArtifactRecord {
   id: string;
   analysis_id: string;
-  artifact_type: string;
+  artifact_type:
+    | 'issue_context'
+    | 'issue_comments'
+    | 'repository_tree'
+    | 'fingerprint'
+    | 'relevant_files'
+    | 'source_files';
   data: Record<string, unknown>;
   created_at: string;
 }

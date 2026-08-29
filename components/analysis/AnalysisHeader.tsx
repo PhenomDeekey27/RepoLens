@@ -6,12 +6,14 @@ interface AnalysisHeaderProps {
 }
 
 export function AnalysisHeader({ analysis }: AnalysisHeaderProps) {
-  const statusConfig = {
-    completed: { label: 'Index Ready', variant: 'default' as const },
-    indexing: { label: 'Indexing...', variant: 'secondary' as const },
-    analyzing: { label: 'Analyzing...', variant: 'secondary' as const },
-    failed: { label: 'Failed', variant: 'destructive' as const },
-    idle: { label: 'Pending', variant: 'outline' as const },
+  const statusConfig: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
+    completed: { label: 'Index Ready', variant: 'default' },
+    indexing: { label: 'Indexing...', variant: 'secondary' },
+    analyzing: { label: 'Analyzing...', variant: 'secondary' },
+    failed: { label: 'Failed', variant: 'destructive' },
+    idle: { label: 'Pending', variant: 'outline' },
+    relevant_file_discovery: { label: 'Discovering...', variant: 'secondary' },
+    relevant_files_ready: { label: 'Files Ready', variant: 'default' },
   };
 
   const config = statusConfig[analysis.status] || statusConfig.idle;

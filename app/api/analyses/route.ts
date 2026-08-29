@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { Repository, Issue } from '@/types';
 
+interface ModelTierConfig {
+  fast: string;
+  balanced: string;
+  deep: string;
+}
+
 export async function POST(request: Request) {
   const supabase = await createClient();
 
@@ -13,7 +19,7 @@ export async function POST(request: Request) {
     );
   }
 
-  let body: { repository?: Repository; issue?: Issue };
+  let body: { repository?: Repository; issue?: Issue; modelConfig?: ModelTierConfig };
   try {
     body = await request.json();
   } catch {
@@ -23,7 +29,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { repository, issue } = body;
+  const { repository, issue, modelConfig } = body;
 
   if (!repository || !issue) {
     return NextResponse.json(
@@ -42,19 +48,25 @@ export async function POST(request: Request) {
   const [owner, repo] = repository.fullName.split('/');
 
   try {
+    const insertData: Record<string, unknown> = {
+      user_id: user.id,
+      repository_id: repository.id,
+      repository_full_name: repository.fullName,
+      repository_owner: owner,
+      repository_name: repo,
+      issue_number: issue.number,
+      issue_title: issue.title,
+      status: 'queued',
+      current_stage: 'issue_context',
+    };
+
+    if (modelConfig) {
+      insertData.model_config = modelConfig;
+    }
+
     const { data: analysis, error: insertError } = await supabase
       .from('analyses')
-      .insert({
-        user_id: user.id,
-        repository_id: repository.id,
-        repository_full_name: repository.fullName,
-        repository_owner: owner,
-        repository_name: repo,
-        issue_number: issue.number,
-        issue_title: issue.title,
-        status: 'queued',
-        current_stage: 'issue_context',
-      })
+      .insert(insertData)
       .select('id')
       .single();
 
