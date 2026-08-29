@@ -11,7 +11,7 @@ export function EvidencePanel({ evidence }: EvidencePanelProps) {
         Evidence
       </h2>
 
-      <div className="p-4 rounded border border-outline-variant bg-surface-container mb-4">
+      <div className="p-4 rounded-lg glass border border-outline-variant/50 mb-4">
         <p className="text-sm text-on-surface leading-relaxed">
           {evidence.description}
         </p>
@@ -21,13 +21,13 @@ export function EvidencePanel({ evidence }: EvidencePanelProps) {
         {evidence.codeReferences.map((ref, index) => (
           <div
             key={index}
-            className="rounded border border-outline-variant bg-surface-container-low overflow-hidden"
+            className="rounded-lg border border-outline-variant/50 bg-surface-container-low/50 overflow-hidden"
           >
-            <div className="flex items-center justify-between px-3 py-2 border-b border-outline-variant bg-surface-container">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-outline-variant/50 bg-surface-container/50">
               <span className="text-xs font-mono text-on-surface-variant">
                 {ref.file}
               </span>
-              <span className="text-xs text-on-surface-variant">
+              <span className="text-xs font-mono text-on-surface-variant">
                 Lines {ref.startLine}-{ref.endLine}
               </span>
             </div>

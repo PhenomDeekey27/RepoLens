@@ -37,7 +37,7 @@ export function FeatureSteps() {
         {steps.map((step, index) => (
           <div key={step.title} className="flex items-center gap-4 md:gap-6">
             <div className="flex flex-col items-center text-center">
-              <div className="flex items-center justify-center w-12 h-12 rounded-lg border border-outline-variant bg-surface-container mb-3">
+              <div className="flex items-center justify-center w-12 h-12 rounded-lg glass border border-outline-variant/50 mb-3 hover:border-primary-container/40 transition-colors">
                 <span className="text-lg text-primary-container">{step.icon}</span>
               </div>
               <h3 className="text-sm font-medium text-on-surface mb-1">{step.title}</h3>

@@ -2,11 +2,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { AppShell } from '@/components/layout/AppShell';
 import { RepositorySelector } from '@/components/analysis/RepositorySelector';
 import { IssueSelector } from '@/components/analysis/IssueSelector';
 import { Button } from '@/components/ui/button';
-import { Repository, Issue } from '@/types';
+import { Repository, Issue, GitHubUser } from '@/types';
+import { createClient } from '@/lib/supabase/client';
 
 export default function NewAnalysisPage() {
   const router = useRouter();
@@ -18,11 +20,31 @@ export default function NewAnalysisPage() {
   const [issuesLoading, setIssuesLoading] = useState(false);
   const [reposError, setReposError] = useState<string | null>(null);
   const [issuesError, setIssuesError] = useState<string | null>(null);
+  const [user, setUser] = useState<GitHubUser | null>(null);
+  const [authExpired, setAuthExpired] = useState(false);
+
+  useEffect(() => {
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user: authUser } }) => {
+      if (authUser?.user_metadata) {
+        setUser({
+          login: authUser.user_metadata.user_name || authUser.user_metadata.login || 'user',
+          name: authUser.user_metadata.full_name || authUser.user_metadata.name || null,
+          avatarUrl: authUser.user_metadata.avatar_url || '',
+        });
+      }
+    });
+  }, []);
 
   useEffect(() => {
     async function fetchRepos() {
       try {
         const response = await fetch('/api/github/repos');
+        if (response.status === 401) {
+          setAuthExpired(true);
+          setReposError(null);
+          return;
+        }
         if (!response.ok) {
           throw new Error('Failed to fetch repositories');
         }
@@ -94,47 +116,68 @@ export default function NewAnalysisPage() {
     }
   };
 
+  const handleReLogin = async () => {
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    localStorage.removeItem('analysis-selection');
+    router.push('/auth/github');
+  };
+
   return (
-    <AppShell>
+    <AppShell user={user}>
       <div className="p-6 max-w-4xl mx-auto">
         <h1 className="text-2xl font-semibold text-on-surface mb-6">
           New Analysis
         </h1>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div>
-            <RepositorySelector
-              selectedRepository={selectedRepository}
-              onSelect={handleRepositorySelect}
-              repositories={repositories}
-              loading={reposLoading}
-              error={reposError}
-            />
+        {authExpired ? (
+          <div className="flex flex-col items-center justify-center py-16 rounded-lg glass border border-outline-variant/50">
+            <p className="text-sm text-on-surface-variant mb-4 text-center">
+              Your session has expired. Please sign in again to access your repositories.
+            </p>
+            <Button
+              className="gradient-primary text-white hover:gradient-primary-hover font-medium"
+              onClick={handleReLogin}
+            >
+              Sign in with GitHub
+            </Button>
           </div>
-
-          <div>
-            {selectedRepository ? (
-              <IssueSelector
-                selectedIssue={selectedIssue}
-                onSelect={setSelectedIssue}
-                issues={issues}
-                loading={issuesLoading}
-                error={issuesError}
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <RepositorySelector
+                selectedRepository={selectedRepository}
+                onSelect={handleRepositorySelect}
+                repositories={repositories}
+                loading={reposLoading}
+                error={reposError}
               />
-            ) : (
-              <div className="flex items-center justify-center h-64 rounded border border-outline-variant bg-surface-container">
-                <p className="text-sm text-on-surface-variant">
-                  Select a repository first
-                </p>
-              </div>
-            )}
+            </div>
+
+            <div>
+              {selectedRepository ? (
+                <IssueSelector
+                  selectedIssue={selectedIssue}
+                  onSelect={setSelectedIssue}
+                  issues={issues}
+                  loading={issuesLoading}
+                  error={issuesError}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-64 rounded-lg glass border border-outline-variant/50">
+                  <p className="text-sm text-on-surface-variant">
+                    Select a repository first
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {selectedRepository && selectedIssue && (
           <div className="mt-6 flex justify-end">
             <Button
-              className="bg-primary-container text-on-primary-container hover:bg-primary-container/90"
+              className="gradient-primary text-white hover:gradient-primary-hover font-medium"
               onClick={handleStartAnalysis}
             >
               Start Analysis

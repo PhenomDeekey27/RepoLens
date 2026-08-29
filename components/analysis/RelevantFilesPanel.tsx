@@ -15,13 +15,13 @@ export function RelevantFilesPanel({ files }: RelevantFilesPanelProps) {
         {files.map((file) => (
           <div
             key={file.path}
-            className="p-3 rounded border border-outline-variant bg-surface-container"
+            className="p-3 rounded-lg glass border border-outline-variant/50"
           >
             <div className="flex items-center justify-between mb-1">
               <span className="text-sm font-mono text-primary-container">
                 {file.path}
               </span>
-              <span className="text-xs text-on-surface-variant">
+              <span className="text-xs font-mono text-on-surface-variant">
                 {Math.round(file.relevanceScore * 100)}% relevance
               </span>
             </div>

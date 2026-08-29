@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { createClient } from '@/lib/supabase/client';
 import { GitHubUser } from '@/types';
+import { toast } from 'sonner';
+import Image from 'next/image';
 
 interface SidebarProps {
   className?: string;
@@ -26,38 +28,36 @@ export function Sidebar({ className, user }: SidebarProps) {
     const supabase = createClient();
     await supabase.auth.signOut();
     localStorage.removeItem('analysis-selection');
-    router.push('/');
+    toast.success('Signed out successfully');
+    setTimeout(() => {
+      router.push('/');
+    }, 800);
   };
 
   return (
     <aside
       className={cn(
-        'flex flex-col w-60 h-full bg-surface-container-low border-r border-outline-variant',
+        'flex flex-col w-60 h-full glass-sidebar border-r border-outline-variant/50',
         className
       )}
     >
-      <Link href={"/"} className="flex items-center gap-2 px-4 py-4">
-        <div className="flex items-center justify-center w-8 h-8 rounded bg-primary-container">
-          <span className="text-sm font-bold text-on-primary-container">R</span>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-semibold text-on-surface">RepoLens</span>
-          <span className="text-xs text-on-surface-variant">AI Investigation Engine</span>
-        </div>
+      <Link href="/" className="flex items-center gap-2 px-4 py-4 pt-14 md:pt-4">
+        <Image src="/Logo.png" alt="RepoLens" width={32} height={32} className="rounded" />
+        <span className="text-sm font-semibold text-on-surface">RepoLens</span>
       </Link>
 
       <div className="px-3 py-2">
         <Link href="/analysis/new" className="w-full">
           <Button
-            className="w-full justify-start gap-2 bg-primary-container text-on-primary-container hover:bg-primary-container/90"
+            className="w-full justify-start gap-2 gradient-primary text-white hover:gradient-primary-hover font-medium"
           >
-            <span className="text-lg">+</span>
+            <span className="text-lg leading-none">+</span>
             <span>New Analysis</span>
           </Button>
         </Link>
       </div>
 
-      <Separator className="my-2 bg-outline-variant" />
+      <Separator className="my-2 bg-outline-variant/50" />
 
       <nav className="flex-1 px-3 py-2 space-y-1">
         {navigation.map((item) => {
@@ -67,9 +67,9 @@ export function Sidebar({ className, user }: SidebarProps) {
               key={item.href}
               href={item.href}
               className={cn(
-                'flex items-center gap-3 px-3 py-2 rounded text-sm transition-colors',
+                'flex items-center gap-3 px-3 py-2 rounded text-sm transition-all',
                 isActive
-                  ? 'bg-surface-container-high text-on-surface'
+                  ? 'bg-surface-container-high text-on-surface border-l-2 border-primary-container'
                   : 'text-on-surface-variant hover:bg-surface-container hover:text-on-surface'
               )}
             >
@@ -80,12 +80,12 @@ export function Sidebar({ className, user }: SidebarProps) {
         })}
       </nav>
 
-      <Separator className="my-2 bg-outline-variant" />
+      <Separator className="my-2 bg-outline-variant/50" />
 
       <div className="px-3 py-2 space-y-1">
         <div className="flex items-center gap-3 px-3 py-2 rounded text-sm text-on-surface-variant cursor-default">
-          <span className="text-base text-green-500">✓</span>
-          <span>GitHub Connected</span>
+          <span className="w-2 h-2 rounded-full bg-green-500" />
+          <span className="text-xs font-mono uppercase tracking-wider">GitHub Connected</span>
         </div>
 
         {user && (
@@ -101,13 +101,13 @@ export function Sidebar({ className, user }: SidebarProps) {
             ) : (
               <span className="text-base">●</span>
             )}
-            <span className="font-mono text-xs">{user.login}</span>
+            <span className="font-mono text-xs text-on-surface-variant truncate">@{user.login}</span>
           </div>
         )}
 
         <button
           onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2 rounded text-sm text-on-surface-variant hover:bg-surface-container hover:text-on-surface cursor-pointer transition-colors w-full"
+          className="flex items-center gap-3 px-3 py-2 rounded text-sm text-on-surface-variant hover:bg-surface-container hover:text-error-default cursor-pointer transition-colors w-full"
         >
           <span className="text-base">↗</span>
           <span>Sign Out</span>

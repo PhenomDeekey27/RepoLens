@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       }
     );
 
-    const { error: exchangeError, data } = await supabase.auth.exchangeCodeForSession(code);
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
     if (exchangeError) {
       console.error('[auth/callback] Exchange error:', exchangeError.message);
@@ -53,6 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     const redirectUrl = new URL(next, origin);
+    redirectUrl.searchParams.set('welcome', '1');
     const redirectResponse = NextResponse.redirect(redirectUrl);
 
     supabaseResponse.cookies.getAll().forEach((cookie) => {

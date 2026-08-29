@@ -12,12 +12,12 @@ export function RootCausePanel({ rootCause }: RootCausePanelProps) {
         <h2 className="text-lg font-semibold text-on-surface">
           Root Cause Identified
         </h2>
-        <Badge variant="outline" className="text-xs">
+        <Badge variant="outline" className="text-xs font-mono">
           {rootCause.confidence}% confidence
         </Badge>
       </div>
 
-      <div className="p-4 rounded border border-outline-variant bg-surface-container mb-4">
+      <div className="p-4 rounded-lg glass border border-outline-variant/50 mb-4">
         <p className="text-sm text-on-surface leading-relaxed">
           {rootCause.description}
         </p>
@@ -31,7 +31,7 @@ export function RootCausePanel({ rootCause }: RootCausePanelProps) {
           {rootCause.affectedFiles.map((file) => (
             <div
               key={file}
-              className="flex items-center gap-2 px-3 py-2 rounded bg-surface-container-low"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-surface-container/50"
             >
               <span className="text-sm font-mono text-primary-container">
                 {file}

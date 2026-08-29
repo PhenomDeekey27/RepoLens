@@ -5,11 +5,20 @@ import { Repository } from '@/types';
 
 export async function GET() {
   const supabase = await createClient();
+
+  const { data: { user }, error: userError } = await supabase.auth.getUser();
+  if (userError || !user) {
+    return NextResponse.json(
+      { error: 'Not authenticated' },
+      { status: 401 }
+    );
+  }
+
   const { data: { session } } = await supabase.auth.getSession();
 
   if (!session?.provider_token) {
     return NextResponse.json(
-      { error: 'Not authenticated' },
+      { error: 'GitHub token not available. Please sign in again.' },
       { status: 401 }
     );
   }

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
+import Image from 'next/image';
 
 const permissions = [
   'Read repositories',
@@ -32,59 +33,61 @@ export function AuthCard() {
 
   return (
     <div className="w-full max-w-md mx-auto">
-      <div className="rounded-lg border border-outline-variant bg-surface-container p-8">
-        <div className="flex flex-col items-center mb-8">
-          <div className="flex items-center justify-center w-12 h-12 rounded-lg bg-primary-container mb-4">
-            <span className="text-lg font-bold text-on-primary-container">R</span>
+      <div className="rounded-xl glass-strong border border-outline-variant/50 p-8 relative overflow-hidden">
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-48 rounded-full glow-primary opacity-20 pointer-events-none" />
+
+        <div className="relative z-10">
+          <div className="flex flex-col items-center mb-8">
+            <Image src="/Logo.png" alt="RepoLens" width={64} height={64} className="rounded-lg" />
+            <h1 className="text-xl font-semibold text-on-surface mt-4 mb-2">RepoLens</h1>
+            <p className="text-sm text-on-surface-variant text-center">
+              Connect your GitHub account
+            </p>
           </div>
-          <h1 className="text-xl font-semibold text-on-surface mb-2">RepoLens</h1>
-          <p className="text-sm text-on-surface-variant text-center">
-            Connect your GitHub account
+
+          {error && (
+            <div className="mb-6 p-3 rounded-lg border border-error-default/30 bg-error-container/10">
+              <p className="text-sm text-error-default text-center">{error}</p>
+            </div>
+          )}
+
+          <p className="text-sm text-on-surface-variant text-center mb-6 leading-relaxed">
+            RepoLens needs GitHub access to inspect repositories and issues. We only request read permissions.
+          </p>
+
+          <div className="mb-6 p-4 rounded-lg border border-outline-variant/50 glass">
+            <p className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-3">
+              Requested Permissions
+            </p>
+            <ul className="space-y-2">
+              {permissions.map((permission) => (
+                <li key={permission} className="flex items-center gap-2 text-sm text-on-surface">
+                  <span className="text-green-500">✓</span>
+                  <span>{permission}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <Button
+            className="w-full gradient-primary text-white hover:gradient-primary-hover h-11 font-medium"
+            onClick={handleGitHubLogin}
+            disabled={loading}
+          >
+            {loading ? 'Connecting to GitHub...' : 'Continue with GitHub'}
+          </Button>
+
+          <p className="text-xs text-on-surface-variant text-center mt-4">
+            By continuing, you agree to our{' '}
+            <a href="#" className="text-primary-container hover:underline">
+              Terms of Service
+            </a>{' '}
+            and{' '}
+            <a href="#" className="text-primary-container hover:underline">
+              Privacy Policy
+            </a>
           </p>
         </div>
-
-        {error && (
-          <div className="mb-6 p-3 rounded border border-error-default/30 bg-error-container/10">
-            <p className="text-sm text-error-default text-center">{error}</p>
-          </div>
-        )}
-
-        <p className="text-sm text-on-surface-variant text-center mb-6 leading-relaxed">
-          RepoLens needs GitHub access to inspect repositories and issues. We only request read permissions.
-        </p>
-
-        <div className="mb-6 p-4 rounded border border-outline-variant bg-surface-container-low">
-          <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-3">
-            Requested Permissions
-          </p>
-          <ul className="space-y-2">
-            {permissions.map((permission) => (
-              <li key={permission} className="flex items-center gap-2 text-sm text-on-surface">
-                <span className="text-green-500">✓</span>
-                <span>{permission}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-
-        <Button
-          className="w-full bg-primary-container text-on-primary-container hover:bg-primary-container/90 h-11"
-          onClick={handleGitHubLogin}
-          disabled={loading}
-        >
-          {loading ? 'Connecting to GitHub...' : 'Continue with GitHub'}
-        </Button>
-
-        <p className="text-xs text-on-surface-variant text-center mt-4">
-          By continuing, you agree to our{' '}
-          <a href="#" className="text-primary-container hover:underline">
-            Terms of Service
-          </a>{' '}
-          and{' '}
-          <a href="#" className="text-primary-container hover:underline">
-            Privacy Policy
-          </a>
-        </p>
       </div>
     </div>
   );

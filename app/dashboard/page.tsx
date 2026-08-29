@@ -1,7 +1,9 @@
+import { Suspense } from 'react';
 import { AppShell } from '@/components/layout/AppShell';
 import { DashboardHeader } from '@/components/dashboard/DashboardHeader';
 import { StatsGrid } from '@/components/dashboard/StatsGrid';
 import { RecentAnalyses } from '@/components/dashboard/RecentAnalyses';
+import { WelcomeToast } from '@/components/dashboard/WelcomeToast';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
@@ -18,11 +20,37 @@ export default async function DashboardPage() {
       }
     : null;
 
+  let repoCount: string | number = '—';
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.provider_token) {
+      const response = await fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `Bearer ${session.provider_token}`,
+          Accept: 'application/vnd.github+json',
+        },
+      });
+      if (response.ok) {
+        const githubUserData = await response.json();
+        repoCount = githubUserData.public_repos ?? '—';
+      }
+    }
+  } catch {
+    // Keep default
+  }
+
   return (
     <AppShell user={githubUser}>
+      <Suspense>
+        <WelcomeToast />
+      </Suspense>
       <div className="p-6 max-w-4xl mx-auto">
         <DashboardHeader userName={githubUser?.login || 'developer'} />
-        <StatsGrid stats={[]} />
+        <StatsGrid stats={[
+          { label: 'Repositories', value: repoCount },
+          { label: 'Issues Analyzed', value: 0 },
+          { label: 'Patches Generated', value: 0 },
+        ]} />
         <RecentAnalyses analyses={[]} />
 
         <div className="mt-8">
@@ -31,7 +59,7 @@ export default async function DashboardPage() {
           </h2>
           <div className="flex gap-4">
             <Link href="/analysis/new">
-              <Button className="bg-primary-container text-on-primary-container hover:bg-primary-container/90">
+              <Button className="gradient-primary text-white hover:gradient-primary-hover font-medium">
                 Analyze an Issue
               </Button>
             </Link>

@@ -21,14 +21,14 @@ export function CodeViewer({ filePath, lines, language }: CodeViewerProps) {
   };
 
   return (
-    <div className="rounded border border-outline-variant bg-surface-container-lowest overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-outline-variant bg-surface-container">
+    <div className="rounded-lg border border-outline-variant/50 bg-surface-container-lowest overflow-hidden">
+      <div className="flex items-center justify-between px-3 py-2 border-b border-outline-variant/50 bg-surface-container/50">
         <div className="flex items-center gap-2">
           <span className="text-xs font-mono text-on-surface-variant">
             {filePath}
           </span>
           {language && (
-            <span className="text-xs text-on-surface-variant">
+            <span className="text-xs font-mono text-on-surface-variant">
               {language}
             </span>
           )}
@@ -37,7 +37,7 @@ export function CodeViewer({ filePath, lines, language }: CodeViewerProps) {
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 text-xs text-on-surface-variant hover:text-on-surface"
+            className="h-6 text-xs font-mono text-on-surface-variant hover:text-on-surface"
             onClick={handleCopy}
           >
             {copied ? '✓ Copied' : 'Copy'}
@@ -45,7 +45,7 @@ export function CodeViewer({ filePath, lines, language }: CodeViewerProps) {
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 text-xs text-on-surface-variant hover:text-on-surface"
+            className="h-6 text-xs font-mono text-on-surface-variant hover:text-on-surface"
           >
             Open on GitHub
           </Button>

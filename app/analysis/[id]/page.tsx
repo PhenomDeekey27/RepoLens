@@ -48,7 +48,7 @@ export default function InvestigationPage() {
   return (
     <AppShell>
       <div className="flex h-[calc(100vh-48px)]">
-        <div className="w-48 border-r border-outline-variant bg-surface-container-low p-3 hidden md:block">
+        <div className="w-48 border-r border-outline-variant/50 glass-sidebar p-3 hidden md:block">
           <AnalysisStepper stages={analysis.stages} />
         </div>
 
@@ -56,54 +56,21 @@ export default function InvestigationPage() {
           <AnalysisHeader analysis={analysis} />
 
           <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-            <Button
-              variant={activeTab === 'overview' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('overview')}
-              className={activeTab === 'overview' ? 'bg-surface-container-high' : 'text-on-surface-variant'}
-            >
-              Overview
-            </Button>
-            <Button
-              variant={activeTab === 'files' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('files')}
-              className={activeTab === 'files' ? 'bg-surface-container-high' : 'text-on-surface-variant'}
-            >
-              Relevant Files
-            </Button>
-            <Button
-              variant={activeTab === 'root-cause' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('root-cause')}
-              className={activeTab === 'root-cause' ? 'bg-surface-container-high' : 'text-on-surface-variant'}
-            >
-              Root Cause
-            </Button>
-            <Button
-              variant={activeTab === 'evidence' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('evidence')}
-              className={activeTab === 'evidence' ? 'bg-surface-container-high' : 'text-on-surface-variant'}
-            >
-              Evidence
-            </Button>
-            <Button
-              variant={activeTab === 'solution' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('solution')}
-              className={activeTab === 'solution' ? 'bg-surface-container-high' : 'text-on-surface-variant'}
-            >
-              Solution
-            </Button>
-            <Button
-              variant={activeTab === 'patch' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setActiveTab('patch')}
-              className={activeTab === 'patch' ? 'bg-surface-container-high' : 'text-on-surface-variant'}
-            >
-              Patch
-            </Button>
+            {(['overview', 'files', 'root-cause', 'evidence', 'solution', 'patch'] as ActiveTab[]).map((tab) => (
+              <Button
+                key={tab}
+                variant={activeTab === tab ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setActiveTab(tab)}
+                className={
+                  activeTab === tab
+                    ? 'bg-primary-container text-on-primary-container font-medium'
+                    : 'text-on-surface-variant hover:text-on-surface'
+                }
+              >
+                {tab === 'root-cause' ? 'Root Cause' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+              </Button>
+            ))}
           </div>
 
           <div className="max-w-3xl">
@@ -129,14 +96,14 @@ export default function InvestigationPage() {
           </div>
         </div>
 
-        <div className="w-72 border-l border-outline-variant bg-surface-container-low p-4 hidden lg:block">
+        <div className="w-72 border-l border-outline-variant/50 glass-sidebar p-4 hidden lg:block">
           <h3 className="text-sm font-semibold text-on-surface mb-4">
             Analysis Details
           </h3>
 
           <div className="space-y-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">
+              <p className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1">
                 Repository
               </p>
               <p className="text-sm font-mono text-on-surface">
@@ -145,7 +112,7 @@ export default function InvestigationPage() {
             </div>
 
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">
+              <p className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1">
                 Issue
               </p>
               <p className="text-sm font-mono text-on-surface">
@@ -154,7 +121,7 @@ export default function InvestigationPage() {
             </div>
 
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">
+              <p className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1">
                 Status
               </p>
               <p className="text-sm text-on-surface capitalize">
@@ -163,7 +130,7 @@ export default function InvestigationPage() {
             </div>
 
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">
+              <p className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1">
                 Started
               </p>
               <p className="text-sm text-on-surface">
@@ -173,7 +140,7 @@ export default function InvestigationPage() {
 
             {analysis.completedAt && (
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-on-surface-variant mb-1">
+                <p className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1">
                   Completed
                 </p>
                 <p className="text-sm text-on-surface">

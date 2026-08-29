@@ -24,12 +24,12 @@ export function AnalysisHeader({ analysis }: AnalysisHeaderProps) {
 
       <div className="flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <span className="text-xs text-on-surface-variant">Branch:</span>
+          <span className="text-xs font-mono text-on-surface-variant">Branch:</span>
           <span className="text-xs font-mono text-on-surface">main</span>
         </div>
         <Badge
           variant={analysis.status === 'completed' ? 'default' : 'secondary'}
-          className="text-xs"
+          className="text-xs font-mono"
         >
           {analysis.status === 'completed' ? 'Completed' : 'Analyzing'}
         </Badge>
