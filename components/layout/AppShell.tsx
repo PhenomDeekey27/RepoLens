@@ -4,17 +4,18 @@ import { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { TopBar } from './TopBar';
 import { Button } from '@/components/ui/button';
+import { GitHubUser } from '@/types';
 
 interface AppShellProps {
   children: React.ReactNode;
+  user?: GitHubUser | null;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, user }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   return (
     <div className="flex h-screen bg-background">
-      {/* Mobile sidebar toggle */}
       <Button
         variant="ghost"
         size="icon"
@@ -25,7 +26,6 @@ export function AppShell({ children }: AppShellProps) {
         <span className="text-on-surface">{sidebarOpen ? '✕' : '☰'}</span>
       </Button>
 
-      {/* Sidebar - hidden on mobile, visible on md+ */}
       <div
         className={`
           fixed inset-y-0 left-0 z-40 w-60 transform transition-transform duration-200 ease-in-out
@@ -33,10 +33,9 @@ export function AppShell({ children }: AppShellProps) {
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
         `}
       >
-        <Sidebar />
+        <Sidebar user={user} />
       </div>
 
-      {/* Overlay for mobile */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-30 bg-black/50 md:hidden"
@@ -44,9 +43,8 @@ export function AppShell({ children }: AppShellProps) {
         />
       )}
 
-      {/* Main content area */}
       <div className="flex flex-col flex-1 min-w-0">
-        <TopBar />
+        <TopBar user={user} />
         <main className="flex-1 overflow-auto">
           {children}
         </main>

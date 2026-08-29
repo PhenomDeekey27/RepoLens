@@ -2,11 +2,18 @@ interface DashboardHeaderProps {
   userName?: string;
 }
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 18) return 'Good afternoon';
+  return 'Good evening';
+}
+
 export function DashboardHeader({ userName = 'developer' }: DashboardHeaderProps) {
   return (
     <div className="mb-8">
       <h1 className="text-2xl font-semibold text-on-surface mb-2">
-        Good evening, {userName}.
+        {getGreeting()}, {userName}.
       </h1>
       <p className="text-sm text-on-surface-variant">
         System online. All systems nominal.

@@ -8,6 +8,10 @@ export interface Repository {
   forks: number;
   lastUpdated: string;
   private: boolean;
+  owner?: string;
+  ownerAvatar?: string;
+  defaultBranch?: string;
+  htmlUrl?: string;
 }
 
 export interface Issue {
@@ -20,6 +24,10 @@ export interface Issue {
   assignees: string[];
   createdAt: string;
   updatedAt: string;
+  closedAt: string | null;
+  comments: number;
+  htmlUrl: string;
+  userLogin: string;
   repositoryId: string;
 }
 
@@ -130,4 +138,15 @@ export interface NavItem {
   href: string;
   icon?: string;
   active?: boolean;
+}
+
+export interface GitHubUser {
+  login: string;
+  name: string | null;
+  avatarUrl: string;
+}
+
+export interface AnalysisContext {
+  repository: Repository;
+  issue: Issue;
 }

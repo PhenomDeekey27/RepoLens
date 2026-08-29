@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { RepositorySelector } from '@/components/analysis/RepositorySelector';
@@ -12,10 +12,85 @@ export default function NewAnalysisPage() {
   const router = useRouter();
   const [selectedRepository, setSelectedRepository] = useState<Repository | null>(null);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
+  const [repositories, setRepositories] = useState<Repository[]>([]);
+  const [issues, setIssues] = useState<Issue[]>([]);
+  const [reposLoading, setReposLoading] = useState(true);
+  const [issuesLoading, setIssuesLoading] = useState(false);
+  const [reposError, setReposError] = useState<string | null>(null);
+  const [issuesError, setIssuesError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchRepos() {
+      try {
+        const response = await fetch('/api/github/repos');
+        if (!response.ok) {
+          throw new Error('Failed to fetch repositories');
+        }
+        const data = await response.json();
+        setRepositories(data.repositories || []);
+      } catch {
+        setReposError("We couldn't load your repositories. Please try again later.");
+      } finally {
+        setReposLoading(false);
+      }
+    }
+    fetchRepos();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedRepository) return;
+
+    let cancelled = false;
+
+    async function fetchRepoIssues() {
+      setIssuesLoading(true);
+      setIssuesError(null);
+      try {
+        const [owner, repo] = selectedRepository!.fullName.split('/');
+        const response = await fetch(
+          `/api/github/issues?owner=${owner}&repo=${repo}&state=open`
+        );
+        if (!response.ok) {
+          throw new Error('Failed to fetch issues');
+        }
+        const data = await response.json();
+        if (!cancelled) {
+          setIssues(data.issues || []);
+        }
+      } catch {
+        if (!cancelled) {
+          setIssuesError("We couldn't load issues for this repository.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIssuesLoading(false);
+        }
+      }
+    }
+    fetchRepoIssues();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedRepository]);
+
+  const handleRepositorySelect = useCallback((repo: Repository) => {
+    setSelectedRepository(repo);
+    setSelectedIssue(null);
+    setIssues([]);
+  }, []);
 
   const handleStartAnalysis = () => {
     if (selectedRepository && selectedIssue) {
-      router.push('/analysis/analysis-1');
+      const analysisId = `analysis-${Date.now()}`;
+      localStorage.setItem(
+        'analysis-selection',
+        JSON.stringify({
+          repository: selectedRepository,
+          issue: selectedIssue,
+        })
+      );
+      router.push(`/analysis/${analysisId}`);
     }
   };
 
@@ -30,16 +105,21 @@ export default function NewAnalysisPage() {
           <div>
             <RepositorySelector
               selectedRepository={selectedRepository}
-              onSelect={setSelectedRepository}
+              onSelect={handleRepositorySelect}
+              repositories={repositories}
+              loading={reposLoading}
+              error={reposError}
             />
           </div>
 
           <div>
             {selectedRepository ? (
               <IssueSelector
-                repository={selectedRepository}
                 selectedIssue={selectedIssue}
                 onSelect={setSelectedIssue}
+                issues={issues}
+                loading={issuesLoading}
+                error={issuesError}
               />
             ) : (
               <div className="flex items-center justify-center h-64 rounded border border-outline-variant bg-surface-container">

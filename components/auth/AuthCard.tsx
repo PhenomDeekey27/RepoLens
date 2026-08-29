@@ -1,11 +1,34 @@
+'use client';
+
+import { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { createClient } from '@/lib/supabase/client';
+
+const permissions = [
+  'Read repositories',
+  'Read issues',
+  'Read repository files',
+];
 
 export function AuthCard() {
-  const permissions = [
-    'Read repositories',
-    'Read issues',
-    'Read repository files',
-  ];
+  const [loading, setLoading] = useState(false);
+  const searchParams = useSearchParams();
+  const error = searchParams.get('error');
+
+  const handleGitHubLogin = async () => {
+    setLoading(true);
+    const supabase = createClient();
+    const { error: authError } = await supabase.auth.signInWithOAuth({
+      provider: 'github',
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (authError) {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="w-full max-w-md mx-auto">
@@ -19,6 +42,12 @@ export function AuthCard() {
             Connect your GitHub account
           </p>
         </div>
+
+        {error && (
+          <div className="mb-6 p-3 rounded border border-error-default/30 bg-error-container/10">
+            <p className="text-sm text-error-default text-center">{error}</p>
+          </div>
+        )}
 
         <p className="text-sm text-on-surface-variant text-center mb-6 leading-relaxed">
           RepoLens needs GitHub access to inspect repositories and issues. We only request read permissions.
@@ -40,8 +69,10 @@ export function AuthCard() {
 
         <Button
           className="w-full bg-primary-container text-on-primary-container hover:bg-primary-container/90 h-11"
+          onClick={handleGitHubLogin}
+          disabled={loading}
         >
-          Continue with GitHub
+          {loading ? 'Connecting to GitHub...' : 'Continue with GitHub'}
         </Button>
 
         <p className="text-xs text-on-surface-variant text-center mt-4">

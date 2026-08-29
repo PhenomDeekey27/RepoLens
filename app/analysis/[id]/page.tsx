@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
+import { useParams } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { AnalysisStepper } from '@/components/analysis/AnalysisStepper';
 import { AnalysisHeader } from '@/components/analysis/AnalysisHeader';
@@ -11,26 +12,49 @@ import { SolutionPanel } from '@/components/analysis/SolutionPanel';
 import { PatchViewer } from '@/components/analysis/PatchViewer';
 import { mockAnalysis } from '@/lib/mock/analyses';
 import { Button } from '@/components/ui/button';
+import { Analysis, AnalysisContext } from '@/types';
 
 type ActiveTab = 'overview' | 'files' | 'root-cause' | 'evidence' | 'solution' | 'patch';
 
+function buildAnalysisFromContext(ctx: AnalysisContext): Analysis {
+  return {
+    ...mockAnalysis,
+    repository: ctx.repository,
+    issue: ctx.issue,
+  };
+}
+
+function useStoredAnalysis(): Analysis {
+  return useMemo(() => {
+    if (typeof window === 'undefined') return mockAnalysis;
+    try {
+      const stored = localStorage.getItem('analysis-selection');
+      if (stored) {
+        const context: AnalysisContext = JSON.parse(stored);
+        return buildAnalysisFromContext(context);
+      }
+    } catch {
+      // Fall back to mock data
+    }
+    return mockAnalysis;
+  }, []);
+}
+
 export default function InvestigationPage() {
+  useParams();
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
-  const analysis = mockAnalysis;
+  const analysis = useStoredAnalysis();
 
   return (
     <AppShell>
       <div className="flex h-[calc(100vh-48px)]">
-        {/* Left navigation */}
         <div className="w-48 border-r border-outline-variant bg-surface-container-low p-3 hidden md:block">
           <AnalysisStepper stages={analysis.stages} />
         </div>
 
-        {/* Main content */}
         <div className="flex-1 overflow-auto p-6">
           <AnalysisHeader analysis={analysis} />
 
-          {/* Tab navigation */}
           <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
             <Button
               variant={activeTab === 'overview' ? 'default' : 'ghost'}
@@ -82,7 +106,6 @@ export default function InvestigationPage() {
             </Button>
           </div>
 
-          {/* Tab content */}
           <div className="max-w-3xl">
             {activeTab === 'overview' && (
               <div className="space-y-6">
@@ -106,7 +129,6 @@ export default function InvestigationPage() {
           </div>
         </div>
 
-        {/* Right context panel */}
         <div className="w-72 border-l border-outline-variant bg-surface-container-low p-4 hidden lg:block">
           <h3 className="text-sm font-semibold text-on-surface mb-4">
             Analysis Details
