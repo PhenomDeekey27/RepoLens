@@ -4,8 +4,9 @@ import { GeminiProvider } from './gemini';
 import { DeepSeekProvider } from './deepseek';
 import { ZAIProvider } from './zai';
 import { OpenRouterProvider } from './openrouter';
+import { ChutesProvider } from './chutes';
 
-export type ProviderName = 'gemini' | 'deepseek' | 'zai' | 'opencode' | 'openrouter';
+export type ProviderName = 'gemini' | 'deepseek' | 'zai' | 'opencode' | 'openrouter' | 'chutes';
 
 export interface ProviderHealthState {
   provider: ProviderName;
@@ -62,6 +63,15 @@ export function createProviderInstance(providerName: ProviderName): AIProvider {
         outputLimit: 8192,
       });
 
+    case 'chutes':
+      return new ChutesProvider({
+        apiKey: process.env.CHUTES_API_KEY || '',
+        baseUrl: process.env.CHUTES_BASE_URL || 'https://llm.chutes.ai/v1',
+        model: '',
+        contextLimit: 131_072,
+        outputLimit: 8192,
+      });
+
     default:
       throw new Error(`Unknown provider: ${providerName}`);
   }
@@ -86,6 +96,7 @@ export function parseModelIdentifier(modelId: string): { provider: ProviderName;
     zen: 'opencode',
     openrouter: 'openrouter',
     or: 'openrouter',
+    chutes: 'chutes',
   };
 
   const provider = providerMap[prefix];
@@ -125,6 +136,8 @@ export function isProviderConfigured(providerName: ProviderName): boolean {
       return !!process.env.OPENCODE_ZEN_API_KEY;
     case 'openrouter':
       return !!process.env.OPENROUTER_API_KEY;
+    case 'chutes':
+      return !!process.env.CHUTES_API_KEY;
     default:
       return false;
   }

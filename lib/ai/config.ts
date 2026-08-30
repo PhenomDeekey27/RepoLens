@@ -89,37 +89,118 @@ function rankModels(
   return scored;
 }
 
-const ROOT_CAUSEPreferred_MODELS: TaskModelEntry[] = [
-  // Qwen3 Coder 480B A35B first for root cause analysis
-  { provider: 'openrouter', model: 'qwen/qwen3-coder-plus' },
-  // Then other strong models
-  { provider: 'openrouter', model: 'moonshotai/kimi-k2.5' },
-  { provider: 'openrouter', model: 'moonshotai/kimi-k2-thinking' },
-  { provider: 'openrouter', model: 'qwen/qwen3-coder' },
-  { provider: 'openrouter', model: 'qwen/qwen3-coder-30b-a3b-instruct' },
-  { provider: 'openrouter', model: 'z-ai/glm-5.2' },
+// ── Chutes Preferred Models by Task ──
+
+const CHUTES_ROOT_CAUSE: TaskModelEntry[] = [
+  { provider: 'chutes', model: 'Qwen/Qwen3.5-397B-A17B-TEE' },
+  { provider: 'chutes', model: 'moonshotai/Kimi-K2.6-TEE' },
+  { provider: 'chutes', model: 'deepseek-ai/DeepSeek-V4-Flash-0731-TEE' },
+  { provider: 'chutes', model: 'Qwen/Qwen3-32B-TEE' },
 ];
+
+const CHUTES_EVIDENCE: TaskModelEntry[] = [
+  { provider: 'chutes', model: 'deepseek-ai/DeepSeek-V4-Flash-0731-TEE' },
+  { provider: 'chutes', model: 'Qwen/Qwen3-32B-TEE' },
+  { provider: 'chutes', model: 'Qwen/Qwen3.5-397B-A17B-TEE' },
+  { provider: 'chutes', model: 'moonshotai/Kimi-K2.6-TEE' },
+];
+
+const CHUTES_RELEVANT_FILES: TaskModelEntry[] = [
+  { provider: 'chutes', model: 'deepseek-ai/DeepSeek-V4-Flash-0731-TEE' },
+  { provider: 'chutes', model: 'Qwen/Qwen3-32B-TEE' },
+  { provider: 'chutes', model: 'Qwen/Qwen3.5-397B-A17B-TEE' },
+];
+
+const CHUTES_SOLUTION: TaskModelEntry[] = [
+  { provider: 'chutes', model: 'Qwen/Qwen3.5-397B-A17B-TEE' },
+  { provider: 'chutes', model: 'moonshotai/Kimi-K2.6-TEE' },
+  { provider: 'chutes', model: 'deepseek-ai/DeepSeek-V4-Flash-0731-TEE' },
+];
+
+const CHUTES_PATCH: TaskModelEntry[] = [
+  { provider: 'chutes', model: 'Qwen/Qwen3.5-397B-A17B-TEE' },
+  { provider: 'chutes', model: 'moonshotai/Kimi-K2.6-TEE' },
+  { provider: 'chutes', model: 'deepseek-ai/DeepSeek-V4-Flash-0731-TEE' },
+];
+
+const CHUTES_VALIDATION: TaskModelEntry[] = [
+  { provider: 'chutes', model: 'Qwen/Qwen3-32B-TEE' },
+  { provider: 'chutes', model: 'deepseek-ai/DeepSeek-V4-Flash-0731-TEE' },
+  { provider: 'chutes', model: 'moonshotai/Kimi-K2.6-TEE' },
+];
+
+function getChutesPreferred(task: string): TaskModelEntry[] {
+  switch (task) {
+    case 'root_cause_analysis':
+      return CHUTES_ROOT_CAUSE;
+    case 'evidence_extraction':
+      return CHUTES_EVIDENCE;
+    case 'relevant_file_discovery':
+      return CHUTES_RELEVANT_FILES;
+    case 'solution_generation':
+      return CHUTES_SOLUTION;
+    case 'patch_generation':
+      return CHUTES_PATCH;
+    default:
+      return CHUTES_VALIDATION;
+  }
+}
+
+// BENCHMARK MODE: Override all task models for benchmarking
+const BENCHMARK_MODELS: Record<string, TaskModelEntry[]> = {
+  simple_coding: [{ provider: 'openrouter', model: 'deepseek/deepseek-v4-flash-0731' }],
+  evidence_extraction: [{ provider: 'openrouter', model: 'deepseek/deepseek-v4-flash-0731' }],
+  fast_generation: [{ provider: 'openrouter', model: 'deepseek/deepseek-v4-flash-0731' }],
+  complex_debugging: [{ provider: 'openrouter', model: 'deepseek/deepseek-v4-pro' }],
+  code_generation: [{ provider: 'openrouter', model: 'deepseek/deepseek-v4-pro' }],
+  large_repository_analysis: [{ provider: 'openrouter', model: 'deepseek/deepseek-v4-pro' }],
+  general: [{ provider: 'openrouter', model: 'deepseek/deepseek-v4-pro' }],
+};
 
 export function selectModelsForTask(
   task: string,
   estimatedTokens: number = 0,
   excludeModels: Set<string> = new Set()
 ): TaskModelEntry[] {
-  // Special handling for root_cause_analysis - use preferred OpenRouter models first
-  if (task === 'root_cause_analysis') {
-    const preferred = ROOT_CAUSEPreferred_MODELS.filter(
+  // BENCHMARK MODE: Use DeepSeek models if BENCHMARK_DEEPSEEK=true
+  if (process.env.BENCHMARK_DEEPSEEK === 'true') {
+    const taskType = TASK_TYPE_MAP[task as AnalysisTask] || 'general';
+    const benchmarkModels = BENCHMARK_MODELS[taskType] || BENCHMARK_MODELS.general;
+    const filtered = benchmarkModels.filter(
       (m) => !excludeModels.has(`${m.provider}/${m.model}`)
     );
-    const ranked = rankModels('complex_debugging', Math.max(estimatedTokens * 2, 32_000), excludeModels);
-    const remaining = ranked.filter(
-      (r) => !preferred.some((p) => p.provider === r.entry.provider && p.model === r.entry.model)
-    );
-    return [
-      ...preferred,
-      ...remaining.map((r) => ({ provider: r.entry.provider, model: r.entry.model })),
-    ];
+    if (filtered.length > 0) {
+      console.log(`[benchmark] Using DeepSeek for ${task} (${taskType}): ${filtered.map(m => m.model).join(', ')}`);
+      return filtered;
+    }
   }
 
+  // CHUTES MODE: Use Chutes models first if CHUTES_API_KEY is configured
+  if (process.env.CHUTES_API_KEY) {
+    const chutesPreferred = getChutesPreferred(task).filter(
+      (m) => !excludeModels.has(`${m.provider}/${m.model}`)
+    );
+
+    if (chutesPreferred.length > 0) {
+      const primaryModel = chutesPreferred[0]?.model || 'unknown';
+      const taskType = TASK_TYPE_MAP[task as AnalysisTask] || 'general';
+      const requiredContext = Math.max(estimatedTokens * 2, 32_000);
+      const ranked = rankModels(taskType, requiredContext, excludeModels);
+      const remaining = ranked.filter(
+        (r) => !chutesPreferred.some(
+          (p) => p.provider === r.entry.provider && p.model === r.entry.model
+        )
+      );
+
+      console.log(`[chutes] Task ${task}: primary=${primaryModel} | ${chutesPreferred.length} Chutes models + ${remaining.length} fallbacks`);
+      return [
+        ...chutesPreferred,
+        ...remaining.map((r) => ({ provider: r.entry.provider, model: r.entry.model })),
+      ];
+    }
+  }
+
+  // Default: use ranked models
   const taskType = TASK_TYPE_MAP[task as AnalysisTask] || 'general';
   const requiredContext = Math.max(estimatedTokens * 2, 32_000);
   const ranked = rankModels(taskType, requiredContext, excludeModels);
