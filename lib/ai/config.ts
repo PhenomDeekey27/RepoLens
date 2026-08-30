@@ -1,4 +1,6 @@
 import { ProviderName } from './providers/registry';
+import { MODEL_REGISTRY, ModelEntry } from './model-registry';
+import { isProviderConfigured } from './providers/registry';
 
 export type AnalysisTask =
   | 'relevant_file_discovery'
@@ -12,77 +14,99 @@ export interface TaskModelEntry {
   model: string;
 }
 
-export interface TaskConfig {
-  preferred: TaskModelEntry;
-  fallback: TaskModelEntry[];
-}
+export type TaskType =
+  | 'simple_coding'
+  | 'complex_debugging'
+  | 'large_repository_analysis'
+  | 'code_generation'
+  | 'evidence_extraction'
+  | 'general';
 
-const DEFAULT_TASK_CONFIG: Record<AnalysisTask, TaskConfig> = {
-  relevant_file_discovery: {
-    preferred: { provider: 'gemini', model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' },
-    fallback: [
-      { provider: 'deepseek', model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash' },
-      { provider: 'zai', model: process.env.ZAI_MODEL || 'glm-4-flash' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_1 || 'nemotron-3.5-lightning-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_2 || 'ling-3.0-flash-fin-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_3 || 'mimo-v2.5-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_4 || 'muse-spark-1.2-free' },
-    ],
-  },
-  root_cause_analysis: {
-    preferred: { provider: 'gemini', model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' },
-    fallback: [
-      { provider: 'deepseek', model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash' },
-      { provider: 'zai', model: process.env.ZAI_MODEL || 'glm-4-flash' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_3 || 'mimo-v2.5-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_1 || 'nemotron-3.5-lightning-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_2 || 'ling-3.0-flash-fin-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_4 || 'muse-spark-1.2-free' },
-    ],
-  },
-  evidence_extraction: {
-    preferred: { provider: 'gemini', model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' },
-    fallback: [
-      { provider: 'deepseek', model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash' },
-      { provider: 'zai', model: process.env.ZAI_MODEL || 'glm-4-flash' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_1 || 'nemotron-3.5-lightning-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_3 || 'mimo-v2.5-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_2 || 'ling-3.0-flash-fin-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_4 || 'muse-spark-1.2-free' },
-    ],
-  },
-  solution_generation: {
-    preferred: { provider: 'deepseek', model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash' },
-    fallback: [
-      { provider: 'gemini', model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' },
-      { provider: 'zai', model: process.env.ZAI_MODEL || 'glm-4-flash' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_3 || 'mimo-v2.5-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_1 || 'nemotron-3.5-lightning-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_2 || 'ling-3.0-flash-fin-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_4 || 'muse-spark-1.2-free' },
-    ],
-  },
-  patch_generation: {
-    preferred: { provider: 'deepseek', model: process.env.DEEPSEEK_MODEL || 'deepseek-v4-flash' },
-    fallback: [
-      { provider: 'gemini', model: process.env.GEMINI_MODEL || 'gemini-2.5-flash' },
-      { provider: 'zai', model: process.env.ZAI_MODEL || 'glm-4-flash' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_3 || 'mimo-v2.5-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_1 || 'nemotron-3.5-lightning-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_2 || 'ling-3.0-flash-fin-free' },
-      { provider: 'opencode', model: process.env.OPENCODE_MODEL_4 || 'muse-spark-1.2-free' },
-    ],
-  },
+const TASK_TYPE_MAP: Record<AnalysisTask, TaskType> = {
+  relevant_file_discovery: 'simple_coding',
+  root_cause_analysis: 'complex_debugging',
+  evidence_extraction: 'evidence_extraction',
+  solution_generation: 'code_generation',
+  patch_generation: 'code_generation',
 };
 
-export function getTaskConfig(task: string): TaskConfig {
-  const taskKey = task as AnalysisTask;
-  return DEFAULT_TASK_CONFIG[taskKey] || DEFAULT_TASK_CONFIG.relevant_file_discovery;
+interface TaskWeights {
+  coding: number;
+  reasoning: number;
+  speed: number;
+  longContext: number;
+}
+
+const TASK_WEIGHTS: Record<TaskType, TaskWeights> = {
+  simple_coding: { coding: 3, reasoning: 1, speed: 3, longContext: 1 },
+  complex_debugging: { coding: 2, reasoning: 3, speed: 1, longContext: 2 },
+  large_repository_analysis: { coding: 1, reasoning: 2, speed: 1, longContext: 3 },
+  code_generation: { coding: 3, reasoning: 2, speed: 1, longContext: 2 },
+  evidence_extraction: { coding: 2, reasoning: 1, speed: 3, longContext: 1 },
+  general: { coding: 1, reasoning: 2, speed: 2, longContext: 1 },
+};
+
+function scoreModel(model: ModelEntry, weights: TaskWeights, requiredContext: number): number {
+  if (model.contextWindow < requiredContext) return -1;
+
+  const w = weights;
+  const norm = w.coding + w.reasoning + w.speed + w.longContext;
+
+  return (
+    (model.codingScore * w.coding +
+      model.reasoningScore * w.reasoning +
+      model.speedScore * w.speed +
+      model.longContextScore * w.longContext) /
+    norm
+  );
+}
+
+function getAvailableModels(requiredContext: number): ModelEntry[] {
+  return MODEL_REGISTRY.filter(
+    (m) => isProviderConfigured(m.provider) && m.contextWindow >= requiredContext
+  );
+}
+
+function rankModels(
+  taskType: TaskType,
+  requiredContext: number,
+  excludeModels: Set<string> = new Set()
+): Array<{ entry: ModelEntry; score: number }> {
+  const weights = TASK_WEIGHTS[taskType];
+  const available = getAvailableModels(requiredContext);
+
+  const scored = available
+    .filter((m) => !excludeModels.has(m.id))
+    .map((m) => ({ entry: m, score: scoreModel(m, weights, requiredContext) }))
+    .filter((m) => m.score >= 0)
+    .sort((a, b) => {
+      if (a.entry.free !== b.entry.free) return a.entry.free ? -1 : 1;
+      return b.score - a.score;
+    });
+
+  return scored;
+}
+
+export function selectModelsForTask(
+  task: string,
+  estimatedTokens: number = 0,
+  excludeModels: Set<string> = new Set()
+): TaskModelEntry[] {
+  const taskType = TASK_TYPE_MAP[task as AnalysisTask] || 'general';
+  const requiredContext = Math.max(estimatedTokens * 2, 32_000);
+  const ranked = rankModels(taskType, requiredContext, excludeModels);
+
+  if (ranked.length === 0) {
+    console.warn(`[config] No models available for task ${task} (context: ${requiredContext}), falling back to all configured models`);
+    const allAvailable = MODEL_REGISTRY.filter((m) => isProviderConfigured(m.provider) && !excludeModels.has(m.id));
+    return allAvailable.map((m) => ({ provider: m.provider, model: m.model }));
+  }
+
+  return ranked.map((r) => ({ provider: r.entry.provider, model: r.entry.model }));
 }
 
 export function getTaskModelChain(task: string): TaskModelEntry[] {
-  const config = getTaskConfig(task);
-  return [config.preferred, ...config.fallback];
+  return selectModelsForTask(task);
 }
 
 export function getTestFailProvider(): string | null {

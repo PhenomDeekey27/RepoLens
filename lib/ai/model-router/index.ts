@@ -4,7 +4,7 @@ import {
   ProviderName,
   isProviderConfigured,
 } from '../providers/registry';
-import { getTaskModelChain, getTestFailProvider, TaskModelEntry } from '../config';
+import { selectModelsForTask, getTestFailProvider, TaskModelEntry } from '../config';
 
 export interface RunRequest {
   task: string;
@@ -24,7 +24,7 @@ type ErrorCategory =
   | 'rate_limit'
   | 'timeout'
   | 'server_error'
-  | 'capacity'
+  | 'provider_error'
   | 'invalid_request'
   | 'context_too_large'
   | 'network'
@@ -45,29 +45,39 @@ function classifyError(error: Error): ErrorCategory {
   if (msg.includes('500') || msg.includes('502') || msg.includes('503') || msg.includes('504') || msg.includes('internal server error') || msg.includes('bad gateway') || msg.includes('service unavailable')) {
     return 'server_error';
   }
+  if (msg.includes('insufficient balance') || msg.includes('payment') || msg.includes('credits') || msg.includes('billing')) {
+    return 'provider_error';
+  }
+  if (msg.includes('404') || msg.includes('not found') || msg.includes('no longer available') || msg.includes('model not found') || msg.includes('does not exist')) {
+    return 'provider_error';
+  }
   if (msg.includes('capacity') || msg.includes('overloaded') || msg.includes('quota')) {
-    return 'capacity';
+    return 'provider_error';
   }
-  if (msg.includes('400') || msg.includes('bad request') || msg.includes('invalid') || msg.includes('malformed')) {
-    return 'invalid_request';
-  }
-  if (msg.includes('context') && (msg.includes('too long') || msg.includes('exceed') || msg.includes('limit'))) {
+  if (msg.includes('context') && (msg.includes('too long') || msg.includes('exceed') || msg.includes('limit') || msg.includes('too large'))) {
     return 'context_too_large';
   }
   if (msg.includes('econnrefused') || msg.includes('enotfound') || msg.includes('fetch failed') || msg.includes('network')) {
     return 'network';
   }
+  if (msg.includes('400') || msg.includes('bad request') || msg.includes('malformed')) {
+    return 'invalid_request';
+  }
   return 'unknown';
-}
-
-function isFallbackWorthy(category: ErrorCategory): boolean {
-  return ['rate_limit', 'timeout', 'server_error', 'capacity', 'network'].includes(category);
 }
 
 function isTestFailure(providerName: ProviderName, error: Error): boolean {
   const testFail = getTestFailProvider();
   if (!testFail) return false;
   return providerName === testFail && error.message.includes('[TEST_INJECT]');
+}
+
+function estimateTokensFromMessages(messages: AICompletionRequest['messages']): number {
+  let total = 0;
+  for (const msg of messages) {
+    total += Math.ceil(msg.content.length / 4);
+  }
+  return total;
 }
 
 function logAttempt(
@@ -97,14 +107,24 @@ function getOrCreateProvider(entry: TaskModelEntry): AIProvider {
 }
 
 export async function runWithFallback(request: RunRequest): Promise<RunResponse> {
-  const chain = getTaskModelChain(request.task);
+  const estimatedTokens = estimateTokensFromMessages(request.messages);
+  const chain = selectModelsForTask(request.task, estimatedTokens);
   const attempted: RunResponse['attemptedProviders'] = [];
+  const failedModels = new Set<string>();
   let fallbackCount = 0;
   let lastError = new Error('All providers in fallback chain failed');
 
+  console.log(
+    `[model-router] Task: ${request.task} | estimated tokens: ${estimatedTokens} | candidates: ${chain.length}`
+  );
+
   for (const entry of chain) {
     if (!isProviderConfigured(entry.provider)) {
-      console.log(`[model-router] Skipping unconfigured provider: ${entry.provider} for task: ${request.task}`);
+      continue;
+    }
+
+    const modelId = `${entry.provider}/${entry.model}`;
+    if (failedModels.has(modelId)) {
       continue;
     }
 
@@ -113,7 +133,7 @@ export async function runWithFallback(request: RunRequest): Promise<RunResponse>
 
     try {
       console.log(
-        `[model-router] Attempt ${fallbackCount + 1}: ${entry.provider}/${entry.model} for task: ${request.task}`
+        `[model-router] Attempt ${fallbackCount + 1}: ${modelId} for task: ${request.task}`
       );
 
       const completion = await provider.generate({
@@ -140,6 +160,7 @@ export async function runWithFallback(request: RunRequest): Promise<RunResponse>
 
       logAttempt(request.task, entry.provider, entry.model, false, duration, errorMsg, fallbackCount);
       attempted.push({ provider: entry.provider, model: entry.model, error: errorMsg });
+      failedModels.add(modelId);
 
       if (isTestFailure(entry.provider, error)) {
         console.log(`[model-router] Test-injected failure for ${entry.provider} — continuing fallback`);
@@ -150,7 +171,7 @@ export async function runWithFallback(request: RunRequest): Promise<RunResponse>
 
       if (category === 'auth') {
         console.error(
-          `[model-router] Authentication error with ${entry.provider} — this is NOT a fallback-worthy error. Throwing immediately.`
+          `[model-router] Authentication error with ${entry.provider} — NOT fallback-worthy. Throwing.`
         );
         throw new Error(
           `Authentication failed with ${entry.provider}: ${error.message.slice(0, 500)}. ` +
@@ -167,10 +188,13 @@ export async function runWithFallback(request: RunRequest): Promise<RunResponse>
         );
       }
 
-      if (!isFallbackWorthy(category)) {
+      if (category === 'context_too_large') {
         console.warn(
-          `[model-router] Non-fallback-worthy error (${category}) from ${entry.provider}. Attempting fallback anyway.`
+          `[model-router] Context too large for ${entry.provider}/${entry.model} — trying next model with larger context`
         );
+        fallbackCount++;
+        lastError = error;
+        continue;
       }
 
       fallbackCount++;
@@ -178,10 +202,17 @@ export async function runWithFallback(request: RunRequest): Promise<RunResponse>
     }
   }
 
+  if (fallbackCount === 0) {
+    throw new Error(
+      `No configured providers available for task: ${request.task}. ` +
+      `Configure at least one provider API key.`
+    );
+  }
+
   throw lastError;
 }
 
 export function getModels(): string[] {
-  const chain = getTaskModelChain('relevant_file_discovery');
+  const chain = selectModelsForTask('relevant_file_discovery');
   return chain.map((e) => `${e.provider}/${e.model}`);
 }

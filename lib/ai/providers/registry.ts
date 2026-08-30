@@ -3,8 +3,9 @@ import { OpenCodeZenProvider } from './opencode';
 import { GeminiProvider } from './gemini';
 import { DeepSeekProvider } from './deepseek';
 import { ZAIProvider } from './zai';
+import { OpenRouterProvider } from './openrouter';
 
-export type ProviderName = 'gemini' | 'deepseek' | 'zai' | 'opencode';
+export type ProviderName = 'gemini' | 'deepseek' | 'zai' | 'opencode' | 'openrouter';
 
 export interface ProviderHealthState {
   provider: ProviderName;
@@ -52,6 +53,15 @@ export function createProviderInstance(providerName: ProviderName): AIProvider {
         outputLimit: 4096,
       });
 
+    case 'openrouter':
+      return new OpenRouterProvider({
+        apiKey: process.env.OPENROUTER_API_KEY || '',
+        baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+        model: '',
+        contextLimit: 128_000,
+        outputLimit: 8192,
+      });
+
     default:
       throw new Error(`Unknown provider: ${providerName}`);
   }
@@ -74,6 +84,8 @@ export function parseModelIdentifier(modelId: string): { provider: ProviderName;
     glm: 'zai',
     opencode: 'opencode',
     zen: 'opencode',
+    openrouter: 'openrouter',
+    or: 'openrouter',
   };
 
   const provider = providerMap[prefix];
@@ -111,6 +123,8 @@ export function isProviderConfigured(providerName: ProviderName): boolean {
       return !!process.env.ZAI_API_KEY;
     case 'opencode':
       return !!process.env.OPENCODE_ZEN_API_KEY;
+    case 'openrouter':
+      return !!process.env.OPENROUTER_API_KEY;
     default:
       return false;
   }
