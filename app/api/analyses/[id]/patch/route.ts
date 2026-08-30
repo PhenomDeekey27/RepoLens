@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createBackgroundClient } from '@/lib/supabase/background';
-import { runRelevantFileDiscovery } from '@/lib/analysis/relevant-files';
+import { runPatchGeneration } from '@/lib/analysis/patch';
 
 export async function POST(
   _request: Request,
@@ -38,43 +38,25 @@ export async function POST(
     );
   }
 
-  if (analysis.status !== 'ready_for_analysis' && analysis.status !== 'failed') {
+  if (analysis.status !== 'solution_complete') {
     return NextResponse.json(
-      { error: `Analysis must be ready_for_analysis or failed before relevant file discovery (current: ${analysis.status})` },
+      { error: `Analysis must have solution complete before patch generation (current: ${analysis.status})` },
       { status: 409 }
     );
   }
 
-  if (analysis.status === 'failed') {
-    await supabase.from('analyses').update({
-      status: 'queued',
-      current_stage: 'issue_context',
-      error_message: null,
-    }).eq('id', id);
-  }
-
-  const { data: { session } } = await supabase.auth.getSession();
-  const githubToken = session?.provider_token || null;
-
-  if (!githubToken) {
-    return NextResponse.json(
-      { error: 'GitHub token not available. Please re-authenticate with GitHub.' },
-      { status: 401 }
-    );
-  }
-
-  runRelevantFileDiscovery(id, githubToken).catch(async (err) => {
-    console.error('[api/relevant-files] Background discovery failed:', err);
+  runPatchGeneration(id).catch(async (err) => {
+    console.error('[api/patch] Background generation failed:', err);
     try {
       const bg = createBackgroundClient();
       await bg.from('analyses').update({
         status: 'failed',
-        current_stage: 'relevant_files_discovery',
-        error_message: err instanceof Error ? err.message : 'Discovery failed unexpectedly',
+        current_stage: 'patch_generation',
+        error_message: err instanceof Error ? err.message : 'Patch generation failed unexpectedly',
       }).eq('id', id);
-      console.error('[api/relevant-files] Updated analysis to failed status');
+      console.error('[api/patch] Updated analysis to failed status');
     } catch (updateErr) {
-      console.error('[api/relevant-files] Failed to update to failed status:', updateErr);
+      console.error('[api/patch] Failed to update to failed status:', updateErr);
     }
   });
 

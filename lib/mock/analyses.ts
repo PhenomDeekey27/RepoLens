@@ -46,8 +46,9 @@ export const mockAnalysis: Analysis = {
     },
   ],
   rootCause: {
+    summary: 'Memory leak in thread pool executor due to undefined node access',
     description: 'The parseNode function attempts to access node.children without verifying whether node is defined. This occurs when handling asynchronous fallback responses, causing a memory leak when the thread pool executor retains references to undefined nodes.',
-    confidence: 94,
+    confidence: 0.94,
     affectedFiles: [
       'src/core/thread-pool.ts',
       'src/utils/memory-tracker.ts',
@@ -55,24 +56,39 @@ export const mockAnalysis: Analysis = {
   },
   evidence: {
     description: 'Code analysis reveals the memory leak originates in the thread pool cleanup routine.',
-    codeReferences: [
+    evidence: [
       {
         file: 'src/core/thread-pool.ts',
-        startLine: 142,
-        endLine: 158,
+        lineStart: 142,
+        lineEnd: 158,
+        code: 'const children = node.children;\nfor (const child of children) {\n  await this.releaseMemory(child);\n}',
         explanation: 'The cleanup routine fails to release memory when parseNode encounters undefined nodes.',
+        type: 'direct',
       },
       {
         file: 'src/utils/memory-tracker.ts',
-        startLine: 67,
-        endLine: 75,
+        lineStart: 67,
+        lineEnd: 75,
+        code: 'this.allocations.set(nodeId, size);\nthis.totalAllocated += size;',
         explanation: 'Memory tracker does not account for null node references in the allocation map.',
+        type: 'supporting',
       },
     ],
   },
   solution: {
+    summary: 'Add null-check validation and proper cleanup',
     description: 'Add null-check validation before accessing node properties and implement proper cleanup in the thread pool executor.',
-    approach: '1. Add null-check in parseNode function\n2. Implement memory release for undefined node references\n3. Add defensive cleanup in thread pool shutdown',
+    steps: [
+      'Add null-check in parseNode function',
+      'Implement memory release for undefined node references',
+      'Add defensive cleanup in thread pool shutdown',
+    ],
+    affectedFiles: [
+      { path: 'src/core/thread-pool.ts', change: 'Add null-check before accessing node.children' },
+      { path: 'src/utils/memory-tracker.ts', change: 'Add validation for nodeId parameter' },
+    ],
+    risks: ['May impact performance slightly due to additional checks'],
+    confidence: 0.89,
   },
   patch: {
     summary: 'Fix memory leak in thread pool executor by adding null-check validation and proper cleanup',

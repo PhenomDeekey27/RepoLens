@@ -7,15 +7,34 @@ interface ProgressOverlayProps {
 }
 
 const STAGE_LABELS: Record<string, string> = {
-  issue_context: 'Issue Context',
-  issue_comments: 'Issue Comments',
-  repository_tree: 'Repository Tree',
-  file_filtering: 'File Filtering',
-  repository_fingerprint: 'Repository Fingerprint',
+  issue_context: 'Fetching Issue Context',
+  issue_comments: 'Fetching Comments',
+  repository_tree: 'Fetching Repository Tree',
+  file_filtering: 'Filtering Files',
+  repository_fingerprint: 'Building Fingerprint',
   ready: 'Ready',
-  relevant_files_discovery: 'AI Discovery',
-  relevant_files_fetch: 'Fetching Files',
+  relevant_files_discovery: 'AI Discovering Files',
+  relevant_files_fetch: 'Fetching Source Files',
   relevant_files_complete: 'Files Ready',
+  root_cause_analysis: 'Analyzing Root Cause',
+  evidence_extraction: 'Extracting Evidence',
+  solution_generation: 'Generating Solution',
+  patch_generation: 'Generating Patch',
+  completed: 'Completed',
+};
+
+const STAGE_SUB_LABELS: Record<string, string[]> = {
+  issue_context: ['Connecting to GitHub API', 'Loading issue details', 'Parsing labels and metadata'],
+  issue_comments: ['Loading discussion thread', 'Analyzing comment history'],
+  repository_tree: ['Fetching file tree from GitHub', 'Scanning repository structure'],
+  file_filtering: ['Analyzing file types', 'Detecting languages', 'Classifying files'],
+  repository_fingerprint: ['Detecting framework', 'Identifying package manager', 'Mapping source directories'],
+  relevant_files_discovery: ['Building context for AI', 'Calling model for analysis', 'Parsing AI response', 'Validating results'],
+  relevant_files_fetch: ['Downloading source code from GitHub', 'Processing file contents'],
+  root_cause_analysis: ['Building analysis context', 'Calling AI model', 'Parsing root cause', 'Validating results'],
+  evidence_extraction: ['Building evidence context', 'Calling AI model', 'Extracting evidence references', 'Validating results'],
+  solution_generation: ['Building solution context', 'Calling AI model', 'Generating fix strategy', 'Validating results'],
+  patch_generation: ['Building patch context', 'Calling AI model', 'Generating code diffs', 'Validating results'],
 };
 
 const STAGE_ORDER = [
@@ -28,20 +47,33 @@ const STAGE_ORDER = [
   'relevant_files_discovery',
   'relevant_files_fetch',
   'relevant_files_complete',
+  'root_cause_analysis',
+  'evidence_extraction',
+  'solution_generation',
+  'patch_generation',
+  'completed',
 ];
 
 export function ProgressOverlay({ record }: ProgressOverlayProps) {
   const currentLabel = STAGE_LABELS[record.current_stage] || record.current_stage;
+  const subLabels = STAGE_SUB_LABELS[record.current_stage] || [];
   const stageIdx = STAGE_ORDER.indexOf(record.current_stage);
   const progress = Math.round(((stageIdx + 1) / STAGE_ORDER.length) * 100);
 
+  const isActive = ['queued', 'initializing', 'indexing', 'relevant_file_discovery', 'relevant_files_fetch', 'analyzing', 'relevant_files_discovery'].includes(record.status);
+  const isFailed = record.status === 'failed';
+
   const statusMessages: Record<string, string> = {
-    queued: 'Queued... waiting to start',
+    queued: 'Queued — waiting to start',
     initializing: 'Initializing investigation...',
     indexing: 'Indexing repository...',
-    ready_for_analysis: 'Repository index ready!',
+    ready_for_analysis: 'Repository index ready',
     relevant_file_discovery: 'Discovering relevant files...',
-    relevant_files_ready: 'Relevant files ready!',
+    relevant_files_ready: 'Relevant files ready',
+    analyzing: 'AI analysis in progress...',
+    root_cause_complete: 'Root cause analysis complete',
+    evidence_complete: 'Evidence extraction complete',
+    solution_complete: 'Solution generation complete',
     failed: 'Analysis failed',
     completed: 'Analysis complete',
   };
@@ -50,15 +82,15 @@ export function ProgressOverlay({ record }: ProgressOverlayProps) {
     <div className="flex flex-col items-center justify-center py-16">
       <div className="w-full max-w-md glass rounded-xl border border-outline-variant/50 p-8">
         <div className="flex items-center gap-3 mb-6">
-          {record.status !== 'failed' && record.status !== 'ready_for_analysis' && record.status !== 'relevant_files_ready' && (
+          {isActive && (
             <div className="w-5 h-5 border-2 border-primary-container/30 border-t-primary-container rounded-full animate-spin" />
           )}
-          {(record.status === 'ready_for_analysis' || record.status === 'relevant_files_ready') && (
+          {!isActive && !isFailed && (
             <div className="w-5 h-5 rounded-full bg-green-500 flex items-center justify-center">
               <span className="text-white text-xs">✓</span>
             </div>
           )}
-          {record.status === 'failed' && (
+          {isFailed && (
             <div className="w-5 h-5 rounded-full bg-error-container flex items-center justify-center">
               <span className="text-white text-xs">✕</span>
             </div>
@@ -68,7 +100,7 @@ export function ProgressOverlay({ record }: ProgressOverlayProps) {
           </h3>
         </div>
 
-        {record.status !== 'failed' && record.status !== 'ready_for_analysis' && record.status !== 'relevant_files_ready' && (
+        {isActive && (
           <>
             <div className="mb-4">
               <div className="flex justify-between text-xs font-mono text-on-surface-variant mb-2">
@@ -82,6 +114,19 @@ export function ProgressOverlay({ record }: ProgressOverlayProps) {
                 />
               </div>
             </div>
+
+            {subLabels.length > 0 && (
+              <div className="mb-4 p-3 rounded-lg bg-surface-container/30 border border-outline-variant/30">
+                <div className="space-y-1">
+                  {subLabels.map((label, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-[11px] font-mono text-on-surface-variant/70">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-container/50 animate-pulse" style={{ animationDelay: `${idx * 300}ms` }} />
+                      <span>{label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-1">
               {STAGE_ORDER.map((stage, idx) => {
@@ -108,10 +153,15 @@ export function ProgressOverlay({ record }: ProgressOverlayProps) {
           </>
         )}
 
-        {(record.status === 'ready_for_analysis' || record.status === 'relevant_files_ready') && (
+        {!isActive && !isFailed && (
           <div className="space-y-3">
             <p className="text-sm text-on-surface-variant">
-              {record.status === 'relevant_files_ready' ? 'Relevant files discovered successfully.' : 'Repository indexed successfully.'}
+              {record.status === 'relevant_files_ready' ? 'Relevant files discovered successfully.' : 
+               record.status === 'root_cause_complete' ? 'Root cause analysis complete.' :
+               record.status === 'evidence_complete' ? 'Evidence extraction complete.' :
+               record.status === 'solution_complete' ? 'Solution generation complete.' :
+               record.status === 'completed' ? 'Analysis complete.' :
+               'Repository indexed successfully.'}
             </p>
             {record.fingerprint && (
               <div className="space-y-2 text-xs font-mono">
@@ -136,7 +186,7 @@ export function ProgressOverlay({ record }: ProgressOverlayProps) {
           </div>
         )}
 
-        {record.status === 'failed' && record.error_message && (
+        {isFailed && record.error_message && (
           <div className="mt-3 p-3 rounded-lg bg-error-container/10 border border-error-default/30">
             <p className="text-xs text-error-default font-mono">{record.error_message}</p>
           </div>

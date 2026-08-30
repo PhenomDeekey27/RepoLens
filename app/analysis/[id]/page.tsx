@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
 import { AnalysisStepper } from '@/components/analysis/AnalysisStepper';
@@ -22,6 +22,10 @@ import {
   GitHubUser,
   IssueContext,
   IssueComment,
+  RootCause,
+  Evidence,
+  Solution,
+  Patch,
 } from '@/types';
 
 type ActiveTab = 'overview' | 'files' | 'root-cause' | 'evidence' | 'solution' | 'patch';
@@ -36,20 +40,43 @@ const STAGE_ORDER = [
   'relevant_files_discovery',
   'relevant_files_fetch',
   'relevant_files_complete',
+  'root_cause_analysis',
+  'evidence_extraction',
+  'solution_generation',
+  'patch_generation',
+  'completed',
 ];
 
 function buildStagesFromRecord(record: AnalysisRecord): AnalysisStageInfo[] {
   const currentIdx = STAGE_ORDER.indexOf(record.current_stage);
-  const isRelevantDone = record.status === 'relevant_files_ready';
+  const status = record.status;
+
+  const isRelevantDone = status === 'relevant_files_ready' || status === 'root_cause_complete' || status === 'evidence_complete' || status === 'solution_complete' || status === 'completed';
+  const isRootCauseDone = status === 'root_cause_complete' || status === 'evidence_complete' || status === 'solution_complete' || status === 'completed';
+  const isEvidenceDone = status === 'evidence_complete' || status === 'solution_complete' || status === 'completed';
+  const isSolutionDone = status === 'solution_complete' || status === 'completed';
+  const isCompleted = status === 'completed';
+  const isRunning = status === 'queued' || status === 'initializing' || status === 'indexing' || status === 'relevant_file_discovery' || status === 'relevant_files_fetch' || status === 'analyzing';
+  const isFailed = status === 'failed';
+
+  const getStageDetail = (stage: string): string | undefined => {
+    if (!isRunning) return undefined;
+    if (stage === 'RELEVANT_FILES' && status === 'relevant_file_discovery') return 'AI analyzing files...';
+    if (stage === 'ROOT_CAUSE' && status === 'analyzing' && record.current_stage === 'root_cause_analysis') return 'AI identifying root cause...';
+    if (stage === 'EVIDENCE' && status === 'analyzing' && record.current_stage === 'evidence_extraction') return 'AI extracting evidence...';
+    if (stage === 'SOLUTION' && status === 'analyzing' && record.current_stage === 'solution_generation') return 'AI generating solution...';
+    if (stage === 'PATCH' && status === 'analyzing' && record.current_stage === 'patch_generation') return 'AI generating patch...';
+    return undefined;
+  };
 
   return [
-    { stage: 'REPOSITORY', status: currentIdx >= 2 ? 'completed' : 'pending', label: 'Repository' },
-    { stage: 'ISSUE', status: currentIdx >= 1 ? 'completed' : 'pending', label: 'Issue' },
-    { stage: 'RELEVANT_FILES', status: isRelevantDone ? 'completed' : currentIdx >= 5 ? 'running' : 'pending', label: 'Relevant Files' },
-    { stage: 'ROOT_CAUSE', status: 'pending', label: 'Root Cause' },
-    { stage: 'EVIDENCE', status: 'pending', label: 'Evidence' },
-    { stage: 'SOLUTION', status: 'pending', label: 'Solution' },
-    { stage: 'PATCH', status: 'pending', label: 'Patch' },
+    { stage: 'REPOSITORY', status: currentIdx >= 2 ? 'completed' : 'pending', label: 'Repository', stageDetail: getStageDetail('REPOSITORY') },
+    { stage: 'ISSUE', status: currentIdx >= 1 ? 'completed' : 'pending', label: 'Issue', stageDetail: getStageDetail('ISSUE') },
+    { stage: 'RELEVANT_FILES', status: isRelevantDone ? 'completed' : currentIdx >= 5 && currentIdx <= 8 ? 'running' : isFailed && record.current_stage === 'relevant_files_discovery' ? 'failed' : 'pending', label: 'Relevant Files', stageDetail: getStageDetail('RELEVANT_FILES') },
+    { stage: 'ROOT_CAUSE', status: isRootCauseDone ? 'completed' : currentIdx >= 9 && currentIdx <= 10 ? 'running' : isFailed && record.current_stage === 'root_cause_analysis' ? 'failed' : 'pending', label: 'Root Cause', stageDetail: getStageDetail('ROOT_CAUSE') },
+    { stage: 'EVIDENCE', status: isEvidenceDone ? 'completed' : currentIdx >= 10 && currentIdx <= 11 ? 'running' : isFailed && record.current_stage === 'evidence_extraction' ? 'failed' : 'pending', label: 'Evidence', stageDetail: getStageDetail('EVIDENCE') },
+    { stage: 'SOLUTION', status: isSolutionDone ? 'completed' : currentIdx >= 11 && currentIdx <= 12 ? 'running' : isFailed && record.current_stage === 'solution_generation' ? 'failed' : 'pending', label: 'Solution', stageDetail: getStageDetail('SOLUTION') },
+    { stage: 'PATCH', status: isCompleted ? 'completed' : currentIdx >= 12 ? 'running' : isFailed && record.current_stage === 'patch_generation' ? 'failed' : 'pending', label: 'Patch', stageDetail: getStageDetail('PATCH') },
   ];
 }
 
@@ -85,7 +112,7 @@ function buildAnalysisFromRecord(record: AnalysisRecord, ctx: AnalysisContext | 
   };
 
   const uiStatus =
-    record.status === 'ready_for_analysis' || record.status === 'relevant_files_ready'
+    record.status === 'ready_for_analysis' || record.status === 'relevant_files_ready' || record.status === 'root_cause_complete' || record.status === 'evidence_complete' || record.status === 'solution_complete'
       ? 'completed'
       : record.status === 'failed'
         ? 'failed'
@@ -122,7 +149,15 @@ export default function InvestigationPage() {
   const [relevantFiles, setRelevantFiles] = useState<RelevantFile[]>([]);
   const [issueContext, setIssueContext] = useState<IssueContext | null>(null);
   const [comments, setComments] = useState<IssueComment[]>([]);
+  const [rootCause, setRootCause] = useState<RootCause | null>(null);
+  const [evidence, setEvidence] = useState<Evidence | null>(null);
+  const [solution, setSolution] = useState<Solution | null>(null);
+  const [patch, setPatch] = useState<Patch | null>(null);
   const [startingDiscovery, setStartingDiscovery] = useState(false);
+  const [startingRootCause, setStartingRootCause] = useState(false);
+  const [startingEvidence, setStartingEvidence] = useState(false);
+  const [startingSolution, setStartingSolution] = useState(false);
+  const [startingPatch, setStartingPatch] = useState(false);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const prevStatusRef = useRef<string | null>(null);
 
@@ -221,7 +256,7 @@ export default function InvestigationPage() {
 
   useEffect(() => {
     if (!record) return;
-    const shouldPoll = ['queued', 'initializing', 'indexing', 'relevant_file_discovery', 'relevant_files_fetch', 'ready_for_analysis'].includes(record.status);
+    const shouldPoll = ['queued', 'initializing', 'indexing', 'relevant_file_discovery', 'relevant_files_fetch', 'relevant_files_discovery', 'ready_for_analysis', 'relevant_files_ready', 'analyzing'].includes(record.status);
     if (!shouldPoll) return;
 
     let cancelled = false;
@@ -240,17 +275,23 @@ export default function InvestigationPage() {
             toast.success('Repository index ready!');
           } else if (data.analysis.status === 'relevant_files_ready') {
             toast.success('Relevant files discovered!');
+          } else if (data.analysis.status === 'root_cause_complete') {
+            toast.success('Root cause analysis complete!');
+          } else if (data.analysis.status === 'evidence_complete') {
+            toast.success('Evidence extraction complete!');
+          } else if (data.analysis.status === 'solution_complete') {
+            toast.success('Solution generation complete!');
+          } else if (data.analysis.status === 'completed') {
+            toast.success('Analysis complete!');
           } else if (data.analysis.status === 'failed') {
             toast.error(data.analysis.error_message || 'Analysis failed');
-          } else if (data.analysis.status === 'relevant_file_discovery') {
-            toast.info('AI discovery in progress...');
           }
         }
         prevStatusRef.current = data.analysis.status;
       } catch { /* ignore */ }
     };
 
-    pollRef.current = setInterval(poll, 2000);
+    pollRef.current = setInterval(poll, 5000);
     return () => {
       cancelled = true;
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
@@ -258,15 +299,19 @@ export default function InvestigationPage() {
   }, [record?.status, analysisId]);
 
   useEffect(() => {
-    if (record?.status === 'ready_for_analysis' || record?.status === 'relevant_files_ready') {
+    if (record?.status === 'ready_for_analysis' || record?.status === 'relevant_files_ready' || record?.status === 'root_cause_complete' || record?.status === 'evidence_complete' || record?.status === 'solution_complete' || record?.status === 'completed') {
       let cancelled = false;
       const load = async () => {
         try {
-          const [filesRes, issueRes, commentsRes, relevantRes] = await Promise.all([
+          const [filesRes, issueRes, commentsRes, relevantRes, rootCauseRes, evidenceRes, solutionRes, patchRes] = await Promise.all([
             fetch(`/api/analyses/${analysisId}/repository-files`),
             fetch(`/api/analyses/${analysisId}/artifacts/issue_context`),
             fetch(`/api/analyses/${analysisId}/artifacts/issue_comments`),
             fetch(`/api/analyses/${analysisId}/artifacts/relevant_files`),
+            fetch(`/api/analyses/${analysisId}/artifacts/root_cause`),
+            fetch(`/api/analyses/${analysisId}/artifacts/evidence`),
+            fetch(`/api/analyses/${analysisId}/artifacts/solution`),
+            fetch(`/api/analyses/${analysisId}/artifacts/patch`),
           ]);
           if (cancelled) return;
           if (filesRes.ok) {
@@ -285,6 +330,51 @@ export default function InvestigationPage() {
             const data = await relevantRes.json();
             setRelevantFiles(data.artifact?.data?.files || []);
           }
+          if (rootCauseRes.ok) {
+            const data = await rootCauseRes.json();
+            if (data.artifact?.data) {
+              setRootCause({
+                summary: data.artifact.data.rootCause?.summary || '',
+                description: data.artifact.data.rootCause?.explanation || '',
+                confidence: data.artifact.data.rootCause?.confidence || 0,
+                affectedFiles: data.artifact.data.affectedFiles?.map((f: { path: string }) => f.path) || [],
+              });
+            }
+          }
+          if (evidenceRes.ok) {
+            const data = await evidenceRes.json();
+            if (data.artifact?.data) {
+              setEvidence({
+                status: data.artifact.data.status || 'evidence_found',
+                description: data.artifact.data.description || '',
+                reason: data.artifact.data.reason,
+                confidence: data.artifact.data.confidence,
+                evidence: data.artifact.data.evidence || [],
+              });
+            }
+          }
+          if (solutionRes.ok) {
+            const data = await solutionRes.json();
+            if (data.artifact?.data) {
+              setSolution({
+                summary: data.artifact.data.summary || '',
+                description: data.artifact.data.description || '',
+                steps: data.artifact.data.steps || [],
+                affectedFiles: data.artifact.data.affectedFiles || [],
+                risks: data.artifact.data.risks || [],
+                confidence: data.artifact.data.confidence || 0,
+              });
+            }
+          }
+          if (patchRes.ok) {
+            const data = await patchRes.json();
+            if (data.artifact?.data) {
+              setPatch({
+                summary: data.artifact.data.summary || '',
+                files: data.artifact.data.files || [],
+              });
+            }
+          }
         } catch { /* ignore */ }
       };
       load();
@@ -296,23 +386,24 @@ export default function InvestigationPage() {
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
   }, []);
 
+  const refreshRecord = async () => {
+    const refreshRes = await fetch(`/api/analyses/${analysisId}`);
+    if (refreshRes.ok) {
+      const data = await refreshRes.json();
+      setRecord(data.analysis);
+    }
+  };
+
   const handleStartDiscovery = async () => {
     setStartingDiscovery(true);
     try {
-      const response = await fetch(`/api/analyses/${analysisId}/relevant-files`, {
-        method: 'POST',
-      });
+      const response = await fetch(`/api/analyses/${analysisId}/relevant-files`, { method: 'POST' });
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || 'Failed to start discovery');
       }
       toast.success('Starting relevant file discovery...');
-      // Refresh the analysis record
-      const refreshRes = await fetch(`/api/analyses/${analysisId}`);
-      if (refreshRes.ok) {
-        const data = await refreshRes.json();
-        setRecord(data.analysis);
-      }
+      await refreshRecord();
     } catch (err) {
       const e = err as Error;
       toast.error(e.message || 'Failed to start discovery');
@@ -321,17 +412,115 @@ export default function InvestigationPage() {
     }
   };
 
-  const isRunning = ['queued', 'initializing', 'indexing', 'relevant_file_discovery', 'relevant_files_fetch'].includes(record?.status || '');
-  const isComplete = record?.status === 'relevant_files_ready';
+  const handleStartRootCause = async (isRerun = false) => {
+    setStartingRootCause(true);
+    try {
+      const response = await fetch(`/api/analyses/${analysisId}/root-cause`, { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to start root cause analysis');
+      }
+      toast.success(isRerun ? 'Re-running root cause analysis...' : 'Starting root cause analysis...');
+      await refreshRecord();
+    } catch (err) {
+      const e = err as Error;
+      toast.error(e.message || 'Failed to start root cause analysis');
+    } finally {
+      setStartingRootCause(false);
+    }
+  };
+
+  const handleStartEvidence = async (isRerun = false) => {
+    setStartingEvidence(true);
+    try {
+      const response = await fetch(`/api/analyses/${analysisId}/evidence`, { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to start evidence extraction');
+      }
+      toast.success(isRerun ? 'Re-running evidence extraction...' : 'Starting evidence extraction...');
+      await refreshRecord();
+    } catch (err) {
+      const e = err as Error;
+      toast.error(e.message || 'Failed to start evidence extraction');
+    } finally {
+      setStartingEvidence(false);
+    }
+  };
+
+  const handleStartSolution = async (isRerun = false) => {
+    setStartingSolution(true);
+    try {
+      const response = await fetch(`/api/analyses/${analysisId}/solution`, { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to start solution generation');
+      }
+      toast.success(isRerun ? 'Re-generating solution...' : 'Starting solution generation...');
+      await refreshRecord();
+    } catch (err) {
+      const e = err as Error;
+      toast.error(e.message || 'Failed to start solution generation');
+    } finally {
+      setStartingSolution(false);
+    }
+  };
+
+  const handleStartPatch = async (isRerun = false) => {
+    setStartingPatch(true);
+    try {
+      const response = await fetch(`/api/analyses/${analysisId}/patch`, { method: 'POST' });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Failed to start patch generation');
+      }
+      toast.success(isRerun ? 'Re-generating patch...' : 'Starting patch generation...');
+      await refreshRecord();
+    } catch (err) {
+      const e = err as Error;
+      toast.error(e.message || 'Failed to start patch generation');
+    } finally {
+      setStartingPatch(false);
+    }
+  };
+
+  const handleStageClick = useCallback((stage: AnalysisStageInfo) => {
+    const tabMap: Record<string, ActiveTab> = {
+      'REPOSITORY': 'overview',
+      'ISSUE': 'overview',
+      'RELEVANT_FILES': 'files',
+      'ROOT_CAUSE': 'root-cause',
+      'EVIDENCE': 'evidence',
+      'SOLUTION': 'solution',
+      'PATCH': 'patch',
+    };
+    const tab = tabMap[stage.stage];
+    if (tab) setActiveTab(tab);
+  }, []);
+
+  const anyStageRunning = startingDiscovery || startingRootCause || startingEvidence || startingSolution || startingPatch || record?.status === 'relevant_file_discovery' || record?.status === 'relevant_files_fetch' || record?.status === 'relevant_files_discovery' || record?.status === 'analyzing' || record?.status === 'queued' || record?.status === 'initializing' || record?.status === 'indexing';
+  const isRunning = anyStageRunning;
+  const isComplete = record?.status === 'completed';
   const isFailed = record?.status === 'failed';
-  const isDiscoveryReady = record?.status === 'ready_for_analysis' || record?.status === 'failed';
-  const showProgress = isRunning || isFailed || record?.status === 'ready_for_analysis';
+  const isDiscoveryReady = record?.status === 'ready_for_analysis' || (record?.status === 'failed' && record?.current_stage === 'relevant_files_discovery');
+  const isDiscoveryRunning = record?.status === 'relevant_file_discovery' || record?.status === 'relevant_files_fetch' || record?.status === 'relevant_files_discovery';
+  const isRootCauseReady = record?.status === 'relevant_files_ready' || (record?.status === 'failed' && record?.current_stage === 'root_cause_analysis');
+  const isRootCauseRunning = record?.status === 'analyzing' && record?.current_stage === 'root_cause_analysis';
+  const isEvidenceReady = record?.status === 'root_cause_complete' || (record?.status === 'failed' && record?.current_stage === 'evidence_extraction');
+  const isEvidenceRunning = record?.status === 'analyzing' && record?.current_stage === 'evidence_extraction';
+  const isSolutionReady = record?.status === 'evidence_complete' || (record?.status === 'failed' && record?.current_stage === 'solution_generation');
+  const isSolutionRunning = record?.status === 'analyzing' && record?.current_stage === 'solution_generation';
+  const isPatchReady = record?.status === 'solution_complete' || (record?.status === 'failed' && record?.current_stage === 'patch_generation');
+  const isPatchRunning = record?.status === 'analyzing' && record?.current_stage === 'patch_generation';
+
+  const showProgress = isRunning || isFailed || record?.status === 'ready_for_analysis' || record?.status === 'relevant_files_ready' || record?.status === 'root_cause_complete' || record?.status === 'evidence_complete' || record?.status === 'solution_complete';
+  const showMainContent = isDiscoveryReady || isDiscoveryRunning || isComplete || isRootCauseReady || isEvidenceReady || isSolutionReady || isPatchReady || record?.status === 'relevant_files_ready' || record?.status === 'root_cause_complete' || record?.status === 'evidence_complete' || record?.status === 'solution_complete';
 
   return (
     <AppShell user={user}>
       <div className="flex h-[calc(100vh-48px)]">
         <div className="w-48 border-r border-outline-variant/50 glass-sidebar p-3 hidden md:block">
-          <AnalysisStepper stages={analysis.stages} />
+          <AnalysisStepper stages={analysis.stages} onStageClick={handleStageClick} />
         </div>
 
         <div className="flex-1 overflow-auto p-6">
@@ -360,16 +549,18 @@ export default function InvestigationPage() {
             <ProgressOverlay record={record} />
           )}
 
-          {!loading && !error && (isDiscoveryReady || isComplete) && record && (
+          {!loading && !error && showMainContent && record && (
             <>
               <AnalysisHeader analysis={analysis} />
 
-              {(isComplete || record.status === 'ready_for_analysis') && (
+              {(isComplete || record.status === 'ready_for_analysis' || record.status === 'relevant_files_ready' || isDiscoveryRunning) && (
                 <div className="mb-6 p-4 rounded-lg glass border border-green-500/30 bg-green-500/5">
                   <div className="flex items-center gap-2 mb-2">
                     <div className="w-2 h-2 rounded-full bg-green-500" />
                     <span className="text-sm font-semibold text-on-surface">
-                      {record.status === 'relevant_files_ready' ? 'Relevant Files Ready' : 'Repository Index Ready'}
+                      {record.status === 'relevant_files_ready' ? 'Relevant Files Ready' : 
+                       isDiscoveryRunning ? 'Discovering Relevant Files...' :
+                       'Repository Index Ready'}
                     </span>
                   </div>
                   {record.fingerprint && (
@@ -383,10 +574,10 @@ export default function InvestigationPage() {
                 </div>
               )}
 
-              {isDiscoveryReady && (
+              {(isDiscoveryReady || isDiscoveryRunning) && (
                 <div className="mb-6">
                   <ModelTierPipeline
-                    activeModel={record.status === 'relevant_file_discovery' ? (record.ai_model || null) : null}
+                    activeModel={isDiscoveryRunning ? (record.ai_model || null) : null}
                     fallbackChain={['nemotron-3.5-lightning-free', 'ling-3.0-flash-fin-free', 'mimo-v2.5-free', 'muse-spark-1.2-free']}
                     currentModel={record.ai_model || undefined}
                     provider={record.ai_provider || 'opencode-zen'}
@@ -394,13 +585,13 @@ export default function InvestigationPage() {
                   <div className="mt-3">
                     <Button
                       onClick={handleStartDiscovery}
-                      disabled={startingDiscovery}
+                      disabled={startingDiscovery || isDiscoveryRunning || anyStageRunning}
                       className="gradient-primary text-white hover:gradient-primary-hover font-medium"
                     >
-                      {startingDiscovery ? (
+                      {startingDiscovery || isDiscoveryRunning ? (
                         <span className="flex items-center gap-2">
                           <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                          Starting...
+                          {isDiscoveryRunning ? 'Discovering Relevant Files...' : 'Starting...'}
                         </span>
                       ) : record?.status === 'failed' ? (
                         'Retry Discovery'
@@ -412,23 +603,194 @@ export default function InvestigationPage() {
                 </div>
               )}
 
+              {isRootCauseReady && (
+                <div className="mb-6">
+                  <ModelTierPipeline
+                    activeModel={isRootCauseRunning ? (record.ai_model || null) : null}
+                    fallbackChain={['nemotron-3.5-lightning-free', 'ling-3.0-flash-fin-free', 'mimo-v2.5-free', 'muse-spark-1.2-free']}
+                    currentModel={record.ai_model || undefined}
+                    provider={record.ai_provider || 'opencode-zen'}
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      onClick={() => handleStartRootCause(false)}
+                      disabled={startingRootCause || isRootCauseRunning || anyStageRunning}
+                      className="gradient-primary text-white hover:gradient-primary-hover font-medium"
+                    >
+                      {startingRootCause || isRootCauseRunning ? (
+                        <span className="flex items-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Analyzing...
+                        </span>
+                      ) : record?.status === 'failed' && record?.current_stage === 'root_cause_analysis' ? (
+                        'Retry Root Cause Analysis'
+                      ) : (
+                        'Start Root Cause Analysis'
+                      )}
+                    </Button>
+                    {record?.status === 'root_cause_complete' && (
+                      <Button
+                        onClick={() => handleStartRootCause(true)}
+                        disabled={startingRootCause || anyStageRunning}
+                        variant="outline"
+                        className="border-outline-variant/50 text-on-surface-variant"
+                      >
+                        Re-run
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {isEvidenceReady && (
+                <div className="mb-6">
+                  <ModelTierPipeline
+                    activeModel={isEvidenceRunning ? (record.ai_model || null) : null}
+                    fallbackChain={['nemotron-3.5-lightning-free', 'ling-3.0-flash-fin-free', 'mimo-v2.5-free', 'muse-spark-1.2-free']}
+                    currentModel={record.ai_model || undefined}
+                    provider={record.ai_provider || 'opencode-zen'}
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      onClick={() => handleStartEvidence(false)}
+                      disabled={startingEvidence || isEvidenceRunning || anyStageRunning}
+                      className="gradient-primary text-white hover:gradient-primary-hover font-medium"
+                    >
+                      {startingEvidence || isEvidenceRunning ? (
+                        <span className="flex items-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Extracting...
+                        </span>
+                      ) : record?.status === 'failed' && record?.current_stage === 'evidence_extraction' ? (
+                        'Retry Evidence Extraction'
+                      ) : (
+                        'Start Evidence Extraction'
+                      )}
+                    </Button>
+                    {record?.status === 'evidence_complete' && (
+                      <Button
+                        onClick={() => handleStartEvidence(true)}
+                        disabled={startingEvidence || anyStageRunning}
+                        variant="outline"
+                        className="border-outline-variant/50 text-on-surface-variant"
+                      >
+                        Re-run
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {isSolutionReady && (
+                <div className="mb-6">
+                  <ModelTierPipeline
+                    activeModel={isSolutionRunning ? (record.ai_model || null) : null}
+                    fallbackChain={['nemotron-3.5-lightning-free', 'ling-3.0-flash-fin-free', 'mimo-v2.5-free', 'muse-spark-1.2-free']}
+                    currentModel={record.ai_model || undefined}
+                    provider={record.ai_provider || 'opencode-zen'}
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      onClick={() => handleStartSolution(false)}
+                      disabled={startingSolution || isSolutionRunning || anyStageRunning}
+                      className="gradient-primary text-white hover:gradient-primary-hover font-medium"
+                    >
+                      {startingSolution || isSolutionRunning ? (
+                        <span className="flex items-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Generating...
+                        </span>
+                      ) : record?.status === 'failed' && record?.current_stage === 'solution_generation' ? (
+                        'Retry Solution Generation'
+                      ) : (
+                        'Start Solution Generation'
+                      )}
+                    </Button>
+                    {record?.status === 'solution_complete' && (
+                      <Button
+                        onClick={() => handleStartSolution(true)}
+                        disabled={startingSolution || anyStageRunning}
+                        variant="outline"
+                        className="border-outline-variant/50 text-on-surface-variant"
+                      >
+                        Re-run
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {isPatchReady && (
+                <div className="mb-6">
+                  <ModelTierPipeline
+                    activeModel={isPatchRunning ? (record.ai_model || null) : null}
+                    fallbackChain={['nemotron-3.5-lightning-free', 'ling-3.0-flash-fin-free', 'mimo-v2.5-free', 'muse-spark-1.2-free']}
+                    currentModel={record.ai_model || undefined}
+                    provider={record.ai_provider || 'opencode-zen'}
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <Button
+                      onClick={() => handleStartPatch(false)}
+                      disabled={startingPatch || isPatchRunning || anyStageRunning}
+                      className="gradient-primary text-white hover:gradient-primary-hover font-medium"
+                    >
+                      {startingPatch || isPatchRunning ? (
+                        <span className="flex items-center gap-2">
+                          <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Generating...
+                        </span>
+                      ) : record?.status === 'failed' && record?.current_stage === 'patch_generation' ? (
+                        'Retry Patch Generation'
+                      ) : (
+                        'Start Patch Generation'
+                      )}
+                    </Button>
+                    {isComplete && (
+                      <Button
+                        onClick={() => handleStartPatch(true)}
+                        disabled={startingPatch || anyStageRunning}
+                        variant="outline"
+                        className="border-outline-variant/50 text-on-surface-variant"
+                      >
+                        Re-run
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2 mb-6 overflow-x-auto pb-2">
-                {(['overview', 'files', 'root-cause', 'evidence', 'solution', 'patch'] as ActiveTab[]).map((tab) => (
-                  <Button
-                    key={tab}
-                    variant={activeTab === tab ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setActiveTab(tab)}
-                    className={activeTab === tab ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:text-on-surface'}
-                  >
-                    {tab === 'root-cause' ? 'Root Cause' : tab.charAt(0).toUpperCase() + tab.slice(1)}
-                  </Button>
-                ))}
+                {(['overview', 'files', 'root-cause', 'evidence', 'solution', 'patch'] as ActiveTab[]).map((tab) => {
+                  const isTabLocked = (tab === 'files' && !relevantFiles.length && !record?.status?.startsWith('relevant')) ||
+                    (tab === 'root-cause' && !rootCause && !isRootCauseReady && !isRootCauseRunning && record?.status !== 'root_cause_complete') ||
+                    (tab === 'evidence' && !evidence && !isEvidenceReady && !isEvidenceRunning && record?.status !== 'evidence_complete') ||
+                    (tab === 'solution' && !solution && !isSolutionReady && !isSolutionRunning && record?.status !== 'solution_complete') ||
+                    (tab === 'patch' && !patch && !isPatchReady && !isPatchRunning && !isComplete);
+
+                  return (
+                    <Button
+                      key={tab}
+                      variant={activeTab === tab ? 'default' : 'ghost'}
+                      size="sm"
+                      onClick={() => setActiveTab(tab)}
+                      disabled={isTabLocked && activeTab !== tab}
+                      className={activeTab === tab ? 'bg-primary-container text-on-primary-container font-medium' : 'text-on-surface-variant hover:text-on-surface'}
+                    >
+                      {tab === 'root-cause' ? 'Root Cause' : tab.charAt(0).toUpperCase() + tab.slice(1)}
+                    </Button>
+                  );
+                })}
               </div>
 
               <AnalysisTabContent
                 activeTab={activeTab}
-                analysis={analysis}
+                analysis={{
+                  ...analysis,
+                  rootCause: rootCause || analysis.rootCause,
+                  evidence: evidence || analysis.evidence,
+                  solution: solution || analysis.solution,
+                  patch: patch || analysis.patch,
+                }}
                 record={record}
                 repositoryFiles={repositoryFiles}
                 relevantFiles={relevantFiles}

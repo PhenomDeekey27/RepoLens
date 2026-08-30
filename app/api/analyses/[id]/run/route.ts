@@ -44,7 +44,17 @@ export async function POST(
     );
   }
 
-  runAnalysisInitialization(id).catch((err) => {
+  const { data: { session } } = await supabase.auth.getSession();
+  const githubToken = session?.provider_token || null;
+
+  if (!githubToken) {
+    return NextResponse.json(
+      { error: 'GitHub token not available. Please re-authenticate with GitHub.' },
+      { status: 401 }
+    );
+  }
+
+  runAnalysisInitialization(id, githubToken).catch((err) => {
     console.error('[api/analyses/run] Background analysis failed:', err);
   });
 

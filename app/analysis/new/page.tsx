@@ -139,7 +139,7 @@ export default function NewAnalysisPage() {
 
       if (!runResponse.ok) {
         const errData = await runResponse.json();
-        console.error('Failed to start analysis runner:', errData.error);
+        throw new Error(errData.error || 'Failed to start analysis runner');
       }
 
       toast.success('Analysis created! Initializing investigation...');

@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createBackgroundClient } from '@/lib/supabase/background';
 import { runWithFallback, getModels } from '@/lib/ai/model-router';
 import { buildRelevantFileContext, RelevantFileContext } from '@/lib/ai/context';
 import { deterministicPreFilter } from '@/lib/ai/context/prefilter';
@@ -13,8 +13,11 @@ async function updateAnalysis(
     error_message?: string;
   }
 ) {
-  const supabase = await createClient();
-  await supabase.from('analyses').update(updates).eq('id', analysisId);
+  const supabase = createBackgroundClient();
+  const { error } = await supabase.from('analyses').update(updates).eq('id', analysisId);
+  if (error) {
+    console.error('[relevant-files] Failed to update analysis:', error.message);
+  }
 }
 
 async function storeArtifact(
@@ -22,34 +25,45 @@ async function storeArtifact(
   artifactType: string,
   data: Record<string, unknown>
 ) {
-  const supabase = await createClient();
-  await supabase.from('analysis_artifacts').insert({
+  const supabase = createBackgroundClient();
+  const { error } = await supabase.from('analysis_artifacts').insert({
     analysis_id: analysisId,
     artifact_type: artifactType,
     data,
   });
+  if (error) {
+    console.error('[relevant-files] Failed to store artifact:', artifactType, error.message);
+  }
 }
 
 async function getArtifact(
   analysisId: string,
   artifactType: string
 ): Promise<Record<string, unknown> | null> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const supabase = createBackgroundClient();
+  const { data, error } = await supabase
     .from('analysis_artifacts')
     .select('data')
     .eq('analysis_id', analysisId)
     .eq('artifact_type', artifactType)
     .single();
+  if (error) {
+    console.error('[relevant-files] Failed to fetch artifact:', artifactType, error.message);
+    return null;
+  }
   return data?.data || null;
 }
 
 async function getRepositoryFiles(analysisId: string): Promise<RepositoryFileRecord[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const supabase = createBackgroundClient();
+  const { data, error } = await supabase
     .from('repository_files')
     .select('*')
     .eq('analysis_id', analysisId);
+  if (error) {
+    console.error('[relevant-files] Failed to fetch repository files:', error.message);
+    return [];
+  }
   return (data as RepositoryFileRecord[]) || [];
 }
 
@@ -84,11 +98,11 @@ async function fetchGitHubFile(
   }
 }
 
-export async function runRelevantFileDiscovery(analysisId: string): Promise<void> {
+export async function runRelevantFileDiscovery(analysisId: string, githubToken: string): Promise<void> {
   console.log(`[relevant-files] Starting relevant file discovery for ${analysisId}`);
 
   try {
-    const supabase = await createClient();
+    const supabase = createBackgroundClient();
 
     const { data: analysis, error: fetchError } = await supabase
       .from('analyses')
@@ -101,21 +115,7 @@ export async function runRelevantFileDiscovery(analysisId: string): Promise<void
       throw new Error('Analysis not found in database');
     }
 
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) {
-      console.error('[relevant-files] Session error:', sessionError.message);
-      throw new Error('Failed to get authentication session');
-    }
-    if (!session) {
-      console.error('[relevant-files] No session available');
-      throw new Error('No active session - please sign in again');
-    }
-    if (!session.provider_token) {
-      console.error('[relevant-files] No provider_token in session. Keys:', Object.keys(session));
-      throw new Error('GitHub token not available - please re-authenticate with GitHub');
-    }
-
-    const token = session.provider_token;
+    const token = githubToken;
     const [owner, repo] = analysis.repository_full_name.split('/');
 
     await updateAnalysis(analysisId, {

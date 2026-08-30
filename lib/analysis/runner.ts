@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createBackgroundClient } from '@/lib/supabase/background';
 import { fetchIssueComments } from '@/lib/github/comments';
 import { fetchRepositoryTree } from '@/lib/github/tree';
 import { filterTreeEntries } from './filter';
@@ -33,7 +33,7 @@ async function updateAnalysis(
     completed_at?: string;
   }
 ) {
-  const supabase = await createClient();
+  const supabase = createBackgroundClient();
   const { error } = await supabase
     .from('analyses')
     .update(updates)
@@ -49,7 +49,7 @@ async function storeArtifact(
   artifactType: string,
   data: Record<string, unknown>
 ) {
-  const supabase = await createClient();
+  const supabase = createBackgroundClient();
   const { error } = await supabase.from('analysis_artifacts').insert({
     analysis_id: analysisId,
     artifact_type: artifactType,
@@ -72,7 +72,7 @@ async function storeRepositoryFiles(
     is_ignored: boolean;
   }>
 ) {
-  const supabase = await createClient();
+  const supabase = createBackgroundClient();
 
   const BATCH_SIZE = 500;
   for (let i = 0; i < files.length; i += BATCH_SIZE) {
@@ -94,11 +94,11 @@ function parseRepoFullName(fullName: string): { owner: string; repo: string } {
   return { owner: parts[0], repo: parts[1] };
 }
 
-export async function runAnalysisInitialization(analysisId: string): Promise<void> {
+export async function runAnalysisInitialization(analysisId: string, githubToken: string): Promise<void> {
   console.log(`[analysis-runner] Starting analysis ${analysisId}`);
 
   try {
-    const supabase = await createClient();
+    const supabase = createBackgroundClient();
 
     const { data: analysis, error: fetchError } = await supabase
       .from('analyses')
@@ -113,16 +113,7 @@ export async function runAnalysisInitialization(analysisId: string): Promise<voi
 
     const { owner, repo } = parseRepoFullName(analysis.repository_full_name);
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.provider_token) {
-      await updateAnalysis(analysisId, {
-        status: 'failed',
-        error_message: 'GitHub token not available',
-      });
-      return;
-    }
-
-    const token = session.provider_token;
+    const token = githubToken;
 
     // Step 1: Fetch Issue Context
     await updateAnalysis(analysisId, {

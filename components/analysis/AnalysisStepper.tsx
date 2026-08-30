@@ -3,9 +3,10 @@ import { cn } from '@/lib/utils';
 
 interface AnalysisStepperProps {
   stages: AnalysisStageInfo[];
+  onStageClick?: (stage: AnalysisStageInfo) => void;
 }
 
-export function AnalysisStepper({ stages }: AnalysisStepperProps) {
+export function AnalysisStepper({ stages, onStageClick }: AnalysisStepperProps) {
   return (
     <div className="space-y-1">
       <p className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-3 px-3">
@@ -13,15 +14,21 @@ export function AnalysisStepper({ stages }: AnalysisStepperProps) {
       </p>
       {stages.map((stage, index) => {
         const isLast = index === stages.length - 1;
+        const isClickable = stage.status === 'completed' && onStageClick;
+
         return (
           <div key={stage.stage} className="relative">
-            <div
+            <button
+              onClick={isClickable ? () => onStageClick(stage) : undefined}
+              disabled={!isClickable}
               className={cn(
-                'flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-all duration-300',
+                'flex items-center gap-3 px-3 py-2.5 rounded text-sm transition-all duration-300 w-full text-left',
                 stage.status === 'completed' && 'text-on-surface',
+                stage.status === 'completed' && isClickable && 'cursor-pointer hover:bg-surface-container/50 hover:border-l-2 hover:border-primary-container/50',
                 stage.status === 'running' && 'text-primary-container bg-primary-container/8 border-l-2 border-primary-container',
                 stage.status === 'pending' && 'text-on-surface-variant/60',
-                stage.status === 'failed' && 'text-error-default'
+                stage.status === 'failed' && 'text-error-default',
+                stage.status === 'no_evidence' && 'text-yellow-400'
               )}
             >
               <span className="w-4 flex-shrink-0 text-center">
@@ -37,21 +44,40 @@ export function AnalysisStepper({ stages }: AnalysisStepperProps) {
                   </span>
                 )}
                 {stage.status === 'pending' && (
-                  <span className="w-2 h-2 rounded-full bg-surface-bright/30 inline-block" />
+                  <span className="inline-flex items-center justify-center w-4 h-4">
+                    <span className="text-on-surface-variant/30 text-xs">🔒</span>
+                  </span>
                 )}
                 {stage.status === 'failed' && (
                   <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-error-container/20">
                     <span className="text-error-default text-xs">✕</span>
                   </span>
                 )}
+                {stage.status === 'no_evidence' && (
+                  <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-yellow-500/20">
+                    <span className="text-yellow-400 text-xs">⚠</span>
+                  </span>
+                )}
               </span>
-              <span className={cn(
-                'font-mono text-xs truncate',
-                stage.status === 'running' && 'font-semibold'
-              )}>
-                {stage.label}
-              </span>
-            </div>
+              <div className="flex-1 min-w-0">
+                <span className={cn(
+                  'font-mono text-xs truncate block',
+                  stage.status === 'running' && 'font-semibold'
+                )}>
+                  {stage.label}
+                </span>
+                {stage.stageDetail && (
+                  <span className="text-[10px] font-mono text-on-surface-variant/50 truncate block mt-0.5">
+                    {stage.stageDetail}
+                  </span>
+                )}
+              </div>
+              {isClickable && (
+                <span className="text-[10px] font-mono text-primary-container/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                  view
+                </span>
+              )}
+            </button>
             {!isLast && (
               <div className={cn(
                 'absolute left-[21px] top-[30px] w-px h-1',

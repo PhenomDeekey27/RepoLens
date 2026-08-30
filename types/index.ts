@@ -38,7 +38,14 @@ export type AnalysisStatus =
   | 'completed'
   | 'failed'
   | 'relevant_file_discovery'
-  | 'relevant_files_ready';
+  | 'relevant_files_ready'
+  | 'root_cause_complete'
+  | 'evidence_complete'
+  | 'solution_complete'
+  | 'queued'
+  | 'initializing'
+  | 'ready_for_analysis'
+  | 'no_evidence';
 
 export type AnalysisStage =
   | 'REPOSITORY'
@@ -51,8 +58,10 @@ export type AnalysisStage =
 
 export interface AnalysisStageInfo {
   stage: AnalysisStage;
-  status: 'completed' | 'running' | 'pending' | 'failed';
+  status: 'completed' | 'running' | 'pending' | 'failed' | 'no_evidence';
   label: string;
+  stageDetail?: string;
+  onClick?: () => void;
 }
 
 export interface RelevantFile {
@@ -82,14 +91,25 @@ export interface CodeFile {
 }
 
 export interface RootCause {
+  summary: string;
   description: string;
   confidence: number;
   affectedFiles: string[];
 }
 
 export interface Evidence {
+  status?: 'evidence_found' | 'no_evidence';
   description: string;
-  codeReferences: CodeReference[];
+  reason?: string;
+  confidence?: number;
+  evidence: Array<{
+    file: string;
+    lineStart: number;
+    lineEnd: number;
+    code: string;
+    explanation: string;
+    type: 'direct' | 'supporting';
+  }>;
 }
 
 export interface CodeReference {
@@ -100,8 +120,15 @@ export interface CodeReference {
 }
 
 export interface Solution {
+  summary: string;
   description: string;
-  approach: string;
+  steps: string[];
+  affectedFiles: Array<{
+    path: string;
+    change: string;
+  }>;
+  risks: string[];
+  confidence: number;
 }
 
 export interface Patch {
@@ -180,7 +207,13 @@ export interface AnalysisRecord {
     | 'indexing'
     | 'ready_for_analysis'
     | 'relevant_file_discovery'
+    | 'relevant_files_fetch'
+    | 'relevant_files_discovery'
     | 'relevant_files_ready'
+    | 'analyzing'
+    | 'root_cause_complete'
+    | 'evidence_complete'
+    | 'solution_complete'
     | 'failed'
     | 'completed';
   current_stage:
@@ -192,7 +225,12 @@ export interface AnalysisRecord {
     | 'ready'
     | 'relevant_files_discovery'
     | 'relevant_files_fetch'
-    | 'relevant_files_complete';
+    | 'relevant_files_complete'
+    | 'root_cause_analysis'
+    | 'evidence_extraction'
+    | 'solution_generation'
+    | 'patch_generation'
+    | 'completed';
   error_message: string | null;
   total_files: number;
   filtered_files: number;
@@ -234,7 +272,11 @@ export interface AnalysisArtifactRecord {
     | 'repository_tree'
     | 'fingerprint'
     | 'relevant_files'
-    | 'source_files';
+    | 'source_files'
+    | 'root_cause'
+    | 'evidence'
+    | 'solution'
+    | 'patch';
   data: Record<string, unknown>;
   created_at: string;
 }
@@ -273,4 +315,66 @@ export interface RepositoryFingerprint {
   languages: string[];
   totalFiles: number;
   activeFiles: number;
+}
+
+export interface RootCauseResult {
+  rootCause: {
+    summary: string;
+    explanation: string;
+    confidence: number;
+  };
+  affectedFiles: Array<{
+    path: string;
+    reason: string;
+  }>;
+  evidence: Array<{
+    file: string;
+    lineStart: number;
+    lineEnd: number;
+    explanation: string;
+  }>;
+}
+
+export interface EvidenceResult {
+  status: 'evidence_found' | 'no_evidence';
+  description: string;
+  reason?: string;
+  confidence?: number;
+  evidence: Array<{
+    file: string;
+    lineStart: number;
+    lineEnd: number;
+    code: string;
+    explanation: string;
+    type: 'direct' | 'supporting';
+  }>;
+}
+
+export interface SolutionResult {
+  summary: string;
+  description: string;
+  steps: string[];
+  affectedFiles: Array<{
+    path: string;
+    change: string;
+  }>;
+  risks: string[];
+  confidence: number;
+}
+
+export interface PatchResult {
+  summary: string;
+  files: Array<{
+    path: string;
+    hunks: Array<{
+      oldStart: number;
+      oldLines: number;
+      newStart: number;
+      newLines: number;
+      lines: Array<{
+        type: 'context' | 'removed' | 'added';
+        content: string;
+      }>;
+    }>;
+  }>;
 }
