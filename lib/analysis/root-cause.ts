@@ -2,12 +2,8 @@ import { createBackgroundClient } from '@/lib/supabase/background';
 import { runWithFallback } from '@/lib/ai/model-router';
 import { buildRootCauseContext, RootCauseContext } from '@/lib/ai/context/root-cause';
 import { validateRootCause, parseRootCauseResponse } from '@/lib/ai/validation/root-cause';
-import {
-  IssueContext,
-  IssueComment,
-  RepositoryFingerprint,
-  RelevantFile,
-} from '@/types';
+import { buildCanonicalContext, estimateContextSize, selectSourceFilesForStage } from '@/lib/ai/context/canonical';
+import { recordModelExecution, logStageStart, logStageResult } from '@/lib/ai/model-execution-tracker';
 
 async function updateAnalysis(
   analysisId: string,
@@ -43,24 +39,6 @@ async function storeArtifact(
   if (error) {
     console.error('[root-cause] Failed to store artifact:', artifactType, error.message);
   }
-}
-
-async function getArtifact(
-  analysisId: string,
-  artifactType: string
-): Promise<Record<string, unknown> | null> {
-  const supabase = createBackgroundClient();
-  const { data, error } = await supabase
-    .from('analysis_artifacts')
-    .select('data')
-    .eq('analysis_id', analysisId)
-    .eq('artifact_type', artifactType)
-    .single();
-  if (error) {
-    console.error('[root-cause] Failed to fetch artifact:', artifactType, error.message);
-    return null;
-  }
-  return data?.data || null;
 }
 
 async function deleteArtifactsByType(analysisId: string, artifactTypes: string[]) {
@@ -102,62 +80,127 @@ export async function runRootCauseAnalysis(analysisId: string): Promise<void> {
       error_message: undefined,
     });
 
-    const issueContextData = await getArtifact(analysisId, 'issue_context');
-    const commentsData = await getArtifact(analysisId, 'issue_comments');
-    const fingerprintData = await getArtifact(analysisId, 'fingerprint');
-    const relevantFilesData = await getArtifact(analysisId, 'relevant_files');
-    const sourceFilesData = await getArtifact(analysisId, 'source_files');
+    const context = await buildCanonicalContext(analysisId);
+    const sizeInfo = estimateContextSize(context);
+    const selectedSourceFiles = selectSourceFilesForStage(context, 'root_cause', 15, 60000);
 
-    console.log(`[root-cause] Artifacts found - issue: ${!!issueContextData}, fingerprint: ${!!fingerprintData}, relevantFiles: ${!!relevantFilesData}, sourceFiles: ${!!sourceFilesData}`);
+    logStageStart('root-cause', analysisId, selectedSourceFiles.length, sizeInfo.sourceFilesChars, sizeInfo.estimatedTokens);
 
-    if (!issueContextData || !fingerprintData || !relevantFilesData || !sourceFilesData) {
-      console.error('[root-cause] Required artifacts missing');
+    if (context.sourceFiles.length === 0) {
+      console.error('[root-cause] No source files available. Cannot perform root cause analysis.');
       await updateAnalysis(analysisId, {
         status: 'failed',
-        error_message: 'Required artifacts not found for root cause analysis',
+        error_message: 'No source files available for root cause analysis. Ensure relevant file discovery fetched source code.',
       });
       return;
     }
 
-    const issue = issueContextData as unknown as IssueContext;
-    const comments = (commentsData as unknown as { comments: IssueComment[] })?.comments || [];
-    const fingerprint = fingerprintData as unknown as RepositoryFingerprint;
-    const relevantFiles = (relevantFilesData as unknown as { files: RelevantFile[] })?.files || [];
-    const sourceFiles = (sourceFilesData as unknown as {
-      files: Array<{ path: string; content: string; size: number; language: string }>;
-    })?.files || [];
-
-    console.log(`[root-cause] Building context with ${sourceFiles.length} source files`);
+    if (context.relevantFiles.length === 0) {
+      console.error('[root-cause] No relevant files identified. Cannot perform root cause analysis.');
+      await updateAnalysis(analysisId, {
+        status: 'failed',
+        error_message: 'No relevant files identified. Retry relevant file discovery with broader criteria.',
+      });
+      return;
+    }
 
     const rootCauseContext: RootCauseContext = {
-      issue,
-      comments,
-      fingerprint,
-      relevantFiles,
-      sourceFiles,
+      issue: context.issue,
+      comments: context.comments,
+      fingerprint: context.fingerprint,
+      relevantFiles: context.relevantFiles,
+      sourceFiles: selectedSourceFiles,
     };
 
     const builtContext = buildRootCauseContext(rootCauseContext);
-    console.log(`[root-cause] Estimated tokens: ${builtContext.estimatedTokens}`);
+    console.log(`[root-cause] Context built: ${builtContext.estimatedTokens} estimated tokens`);
+
+    let lastError: Error | null = null;
+    let attemptNumber = 0;
 
     const startTime = Date.now();
-    const response = await runWithFallback({
-      task: 'root_cause_analysis',
-      messages: builtContext.messages,
-      temperature: 0.3,
-      maxTokens: 4096,
-      responseFormat: { type: 'json_object' },
-    });
+    let response;
+    try {
+      response = await runWithFallback({
+        task: 'root_cause_analysis',
+        messages: builtContext.messages,
+        temperature: 0.3,
+        maxTokens: 4096,
+        responseFormat: { type: 'json_object' },
+      });
+      attemptNumber = response.fallbackCount + 1;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      attemptNumber = 1;
+
+      await recordModelExecution({
+        analysisId,
+        stage: 'root_cause_analysis',
+        provider: 'unknown',
+        model: 'unknown',
+        attemptNumber,
+        startedAt: new Date(startTime).toISOString(),
+        completedAt: new Date().toISOString(),
+        durationMs: Date.now() - startTime,
+        success: false,
+        error: lastError.message.slice(0, 500),
+        inputTokens: null,
+        outputTokens: null,
+        fallbackCount: 0,
+        contextChars: sizeInfo.totalChars,
+        estimatedTokens: sizeInfo.estimatedTokens,
+      });
+
+      throw lastError;
+    }
+
     const duration = Date.now() - startTime;
 
-    console.log(`[root-cause] AI response received in ${duration}ms from model: ${response.model}`);
+    logStageResult('root-cause', analysisId, response.provider, response.model, attemptNumber, true, duration);
+
+    await recordModelExecution({
+      analysisId,
+      stage: 'root_cause_analysis',
+      provider: response.provider,
+      model: response.model,
+      attemptNumber,
+      startedAt: new Date(startTime).toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: duration,
+      success: true,
+      error: null,
+      inputTokens: response.usage?.inputTokens || null,
+      outputTokens: response.usage?.outputTokens || null,
+      fallbackCount: response.fallbackCount,
+      contextChars: sizeInfo.totalChars,
+      estimatedTokens: sizeInfo.estimatedTokens,
+    });
 
     const parsedResult = parseRootCauseResponse(response.content);
-    console.log(`[root-cause] Parsed root cause: confidence ${parsedResult.rootCause.confidence}`);
+    console.log(`[root-cause] Parsed root cause: confidence ${parsedResult.rootCause.confidence}, affected files: ${parsedResult.affectedFiles.length}`);
 
     const validationResult = validateRootCause(parsedResult);
     if (!validationResult.valid) {
       console.error('[root-cause] Validation failed:', validationResult.error);
+
+      await recordModelExecution({
+        analysisId,
+        stage: 'root_cause_analysis',
+        provider: response.provider,
+        model: response.model,
+        attemptNumber: attemptNumber + 1,
+        startedAt: new Date().toISOString(),
+        completedAt: new Date().toISOString(),
+        durationMs: 0,
+        success: false,
+        error: validationResult.error || 'Validation failed',
+        inputTokens: null,
+        outputTokens: null,
+        fallbackCount: 0,
+        contextChars: sizeInfo.totalChars,
+        estimatedTokens: sizeInfo.estimatedTokens,
+      });
+
       await updateAnalysis(analysisId, {
         status: 'failed',
         error_message: validationResult.error || 'Root cause validation failed',
@@ -171,6 +214,9 @@ export async function runRootCauseAnalysis(analysisId: string): Promise<void> {
       model: response.model,
       duration,
       usage: response.usage,
+      attemptNumber,
+      sourceFileCount: selectedSourceFiles.length,
+      sourceChars: sizeInfo.sourceFilesChars,
     } as unknown as Record<string, unknown>);
 
     await updateAnalysis(analysisId, {

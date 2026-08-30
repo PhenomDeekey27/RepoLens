@@ -179,25 +179,46 @@ export async function runRelevantFileDiscovery(analysisId: string, githubToken: 
     const duration = Date.now() - startTime;
 
     console.log(`[relevant-files] AI response received in ${duration}ms from model: ${response.model}`);
+    console.log(`[relevant-files] Raw response length: ${response.content.length} chars`);
 
     const parsedResults = parseAIResponse(response.content);
     console.log(`[relevant-files] Parsed ${parsedResults.length} file results`);
+    if (parsedResults.length === 0) {
+      console.log(`[relevant-files] WARNING: AI returned 0 results. Raw response (first 500 chars): ${response.content.slice(0, 500)}`);
+    }
 
     const { validFiles, rejectedPaths } = validateRelevantFiles(parsedResults, repositoryFiles);
     console.log(`[relevant-files] Validated: ${validFiles.length} valid, ${rejectedPaths.length} rejected`);
 
-    if (rejectedPaths.length > 0) {
-      console.log(`[relevant-files] Rejected paths: ${rejectedPaths.join(', ')}`);
-    }
+    let enrichedFiles;
+    let discoverySource: 'ai' | 'deterministic_fallback';
 
-    const enrichedFiles = validFiles.map((f) => ({
-      ...f,
-      reason: parsedResults.find((r) => r.path === f.path)?.reason || '',
-      confidence: parsedResults.find((r) => r.path === f.path)?.confidence || f.relevanceScore,
-      provider: response.provider,
-      model: response.model,
-      source: 'ai' as const,
-    }));
+    if (validFiles.length === 0 && candidates.length > 0) {
+      console.log(`[relevant-files] AI returned 0 valid files. Using deterministic fallback from ${candidates.length} pre-filter candidates`);
+
+      enrichedFiles = candidates.slice(0, 15).map((c) => ({
+        path: c.path,
+        language: repositoryFiles.find((f) => f.path === c.path)?.language || 'Unknown',
+        relevanceScore: Math.min(1, Math.max(0.3, c.score)),
+        description: c.reason,
+        reason: c.reason,
+        confidence: Math.min(1, Math.max(0.3, c.score)),
+        provider: response.provider,
+        model: response.model,
+        source: 'deterministic_fallback' as const,
+      }));
+      discoverySource = 'deterministic_fallback';
+    } else {
+      enrichedFiles = validFiles.map((f) => ({
+        ...f,
+        reason: parsedResults.find((r) => r.path === f.path)?.reason || '',
+        confidence: parsedResults.find((r) => r.path === f.path)?.confidence || f.relevanceScore,
+        provider: response.provider,
+        model: response.model,
+        source: 'ai' as const,
+      }));
+      discoverySource = 'ai';
+    }
 
     await storeArtifact(analysisId, 'relevant_files', {
       files: enrichedFiles,
@@ -210,6 +231,7 @@ export async function runRelevantFileDiscovery(analysisId: string, githubToken: 
       model: response.model,
       duration,
       usage: response.usage,
+      discoverySource,
     } as unknown as Record<string, unknown>);
 
     await updateAnalysis(analysisId, {
@@ -223,18 +245,23 @@ export async function runRelevantFileDiscovery(analysisId: string, githubToken: 
       content: string;
       size: number;
       language: string;
+      sha: string;
+      lineCount: number;
     }> = [];
 
     for (const file of enrichedFiles.slice(0, 15)) {
       const fetched = await fetchGitHubFile(token, owner, repo, file.path, 'HEAD');
       if (fetched) {
+        const lineCount = fetched.content.split('\n').length;
         sourceFiles.push({
           path: file.path,
           content: fetched.content,
           size: fetched.size,
           language: file.language,
+          sha: fetched.sha,
+          lineCount,
         });
-        console.log(`[relevant-files] Fetched ${file.path} (${fetched.size} bytes)`);
+        console.log(`[relevant-files] Fetched ${file.path} (${fetched.size} bytes, ${lineCount} lines)`);
       }
     }
 

@@ -20,7 +20,7 @@ export async function POST(
 
   const { data: analysis, error: fetchError } = await supabase
     .from('analyses')
-    .select('id, user_id, status')
+    .select('id, user_id, status, current_stage')
     .eq('id', id)
     .single();
 
@@ -38,9 +38,12 @@ export async function POST(
     );
   }
 
-  if (analysis.status !== 'root_cause_complete') {
+  const canStart = analysis.status === 'root_cause_complete';
+  const canRetry = analysis.status === 'failed' && analysis.current_stage === 'evidence_extraction';
+
+  if (!canStart && !canRetry) {
     return NextResponse.json(
-      { error: `Analysis must have root cause complete before evidence extraction (current: ${analysis.status})` },
+      { error: `Analysis must have root cause complete or be retrying evidence (current: ${analysis.status}, stage: ${analysis.current_stage})` },
       { status: 409 }
     );
   }

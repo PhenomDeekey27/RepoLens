@@ -20,7 +20,7 @@ export async function POST(
 
   const { data: analysis, error: fetchError } = await supabase
     .from('analyses')
-    .select('id, user_id, status')
+    .select('id, user_id, status, current_stage')
     .eq('id', id)
     .single();
 
@@ -38,9 +38,12 @@ export async function POST(
     );
   }
 
-  if (analysis.status !== 'relevant_files_ready') {
+  const canStart = analysis.status === 'relevant_files_ready';
+  const canRetry = analysis.status === 'failed' && analysis.current_stage === 'root_cause_analysis';
+
+  if (!canStart && !canRetry) {
     return NextResponse.json(
-      { error: `Analysis must have relevant files ready before root cause analysis (current: ${analysis.status})` },
+      { error: `Analysis must have relevant files ready or be retrying root cause (current: ${analysis.status}, stage: ${analysis.current_stage})` },
       { status: 409 }
     );
   }

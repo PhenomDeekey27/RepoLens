@@ -20,7 +20,7 @@ export async function POST(
 
   const { data: analysis, error: fetchError } = await supabase
     .from('analyses')
-    .select('id, user_id, status')
+    .select('id, user_id, status, current_stage')
     .eq('id', id)
     .single();
 
@@ -38,9 +38,12 @@ export async function POST(
     );
   }
 
-  if (analysis.status !== 'evidence_complete') {
+  const canStart = analysis.status === 'evidence_complete';
+  const canRetry = analysis.status === 'failed' && analysis.current_stage === 'solution_generation';
+
+  if (!canStart && !canRetry) {
     return NextResponse.json(
-      { error: `Analysis must have evidence complete before solution generation (current: ${analysis.status})` },
+      { error: `Analysis must have evidence complete or be retrying solution (current: ${analysis.status}, stage: ${analysis.current_stage})` },
       { status: 409 }
     );
   }

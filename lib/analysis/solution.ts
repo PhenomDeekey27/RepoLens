@@ -2,14 +2,8 @@ import { createBackgroundClient } from '@/lib/supabase/background';
 import { runWithFallback } from '@/lib/ai/model-router';
 import { buildSolutionContext, SolutionContext } from '@/lib/ai/context/solution';
 import { validateSolution, parseSolutionResponse } from '@/lib/ai/validation/solution';
-import {
-  IssueContext,
-  IssueComment,
-  RepositoryFingerprint,
-  RelevantFile,
-  RootCauseResult,
-  EvidenceResult,
-} from '@/types';
+import { buildCanonicalContext, estimateContextSize, selectSourceFilesForStage } from '@/lib/ai/context/canonical';
+import { recordModelExecution, logStageStart, logStageResult } from '@/lib/ai/model-execution-tracker';
 
 async function updateAnalysis(
   analysisId: string,
@@ -45,24 +39,6 @@ async function storeArtifact(
   if (error) {
     console.error('[solution] Failed to store artifact:', artifactType, error.message);
   }
-}
-
-async function getArtifact(
-  analysisId: string,
-  artifactType: string
-): Promise<Record<string, unknown> | null> {
-  const supabase = createBackgroundClient();
-  const { data, error } = await supabase
-    .from('analysis_artifacts')
-    .select('data')
-    .eq('analysis_id', analysisId)
-    .eq('artifact_type', artifactType)
-    .single();
-  if (error) {
-    console.error('[solution] Failed to fetch artifact:', artifactType, error.message);
-    return null;
-  }
-  return data?.data || null;
 }
 
 async function deleteArtifactsByType(analysisId: string, artifactTypes: string[]) {
@@ -104,64 +80,108 @@ export async function runSolutionGeneration(analysisId: string): Promise<void> {
       error_message: undefined,
     });
 
-    const issueContextData = await getArtifact(analysisId, 'issue_context');
-    const commentsData = await getArtifact(analysisId, 'issue_comments');
-    const fingerprintData = await getArtifact(analysisId, 'fingerprint');
-    const relevantFilesData = await getArtifact(analysisId, 'relevant_files');
-    const sourceFilesData = await getArtifact(analysisId, 'source_files');
-    const rootCauseData = await getArtifact(analysisId, 'root_cause');
-    const evidenceData = await getArtifact(analysisId, 'evidence');
+    const context = await buildCanonicalContext(analysisId);
+    const sizeInfo = estimateContextSize(context);
+    const selectedSourceFiles = selectSourceFilesForStage(context, 'solution', 10, 30000);
 
-    console.log(`[solution] Artifacts found - issue: ${!!issueContextData}, rootCause: ${!!rootCauseData}, evidence: ${!!evidenceData}`);
+    logStageStart('solution', analysisId, selectedSourceFiles.length, sizeInfo.sourceFilesChars, sizeInfo.estimatedTokens);
 
-    if (!issueContextData || !fingerprintData || !relevantFilesData || !sourceFilesData || !rootCauseData) {
-      console.error('[solution] Required artifacts missing');
+    if (context.sourceFiles.length === 0) {
+      console.error('[solution] No source files available. Cannot generate solution.');
       await updateAnalysis(analysisId, {
         status: 'failed',
-        error_message: 'Required artifacts not found for solution generation',
+        error_message: 'No source files available for solution generation.',
       });
       return;
     }
 
-    const issue = issueContextData as unknown as IssueContext;
-    const comments = (commentsData as unknown as { comments: IssueComment[] })?.comments || [];
-    const fingerprint = fingerprintData as unknown as RepositoryFingerprint;
-    const relevantFiles = (relevantFilesData as unknown as { files: RelevantFile[] })?.files || [];
-    const sourceFiles = (sourceFilesData as unknown as {
-      files: Array<{ path: string; content: string; size: number; language: string }>;
-    })?.files || [];
-    const rootCause = rootCauseData as unknown as RootCauseResult;
-    const evidence = evidenceData as unknown as EvidenceResult | null;
+    if (!context.rootCause) {
+      console.error('[solution] No root cause artifact found. Cannot generate solution.');
+      await updateAnalysis(analysisId, {
+        status: 'failed',
+        error_message: 'Root cause analysis must complete before solution generation.',
+      });
+      return;
+    }
 
-    console.log(`[solution] Building context with ${sourceFiles.length} source files, evidence: ${evidence ? (evidence.evidence?.length || 0) + ' refs' : 'none'}`);
+    if (context.evidence && context.evidence.status !== 'evidence_found') {
+      console.log(`[solution] Evidence status is "${context.evidence.status}". Proceeding with reduced confidence.`);
+    }
 
     const solutionContext: SolutionContext = {
-      issue,
-      comments,
-      fingerprint,
-      relevantFiles,
-      sourceFiles,
-      rootCause,
-      evidence,
+      issue: context.issue,
+      comments: context.comments,
+      fingerprint: context.fingerprint,
+      relevantFiles: context.relevantFiles,
+      sourceFiles: selectedSourceFiles,
+      rootCause: context.rootCause,
+      evidence: context.evidence,
     };
 
     const builtContext = buildSolutionContext(solutionContext);
-    console.log(`[solution] Estimated tokens: ${builtContext.estimatedTokens}`);
+    console.log(`[solution] Context built: ${builtContext.estimatedTokens} estimated tokens`);
 
+    let attemptNumber = 0;
     const startTime = Date.now();
-    const response = await runWithFallback({
-      task: 'solution_generation',
-      messages: builtContext.messages,
-      temperature: 0.3,
-      maxTokens: 4096,
-      responseFormat: { type: 'json_object' },
-    });
+    let response;
+    try {
+      response = await runWithFallback({
+        task: 'solution_generation',
+        messages: builtContext.messages,
+        temperature: 0.3,
+        maxTokens: 4096,
+        responseFormat: { type: 'json_object' },
+      });
+      attemptNumber = response.fallbackCount + 1;
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err));
+      attemptNumber = 1;
+
+      await recordModelExecution({
+        analysisId,
+        stage: 'solution_generation',
+        provider: 'unknown',
+        model: 'unknown',
+        attemptNumber,
+        startedAt: new Date(startTime).toISOString(),
+        completedAt: new Date().toISOString(),
+        durationMs: Date.now() - startTime,
+        success: false,
+        error: error.message.slice(0, 500),
+        inputTokens: null,
+        outputTokens: null,
+        fallbackCount: 0,
+        contextChars: sizeInfo.totalChars,
+        estimatedTokens: sizeInfo.estimatedTokens,
+      });
+
+      throw error;
+    }
+
     const duration = Date.now() - startTime;
 
-    console.log(`[solution] AI response received in ${duration}ms from model: ${response.model}`);
+    logStageResult('solution', analysisId, response.provider, response.model, attemptNumber, true, duration);
+
+    await recordModelExecution({
+      analysisId,
+      stage: 'solution_generation',
+      provider: response.provider,
+      model: response.model,
+      attemptNumber,
+      startedAt: new Date(startTime).toISOString(),
+      completedAt: new Date().toISOString(),
+      durationMs: duration,
+      success: true,
+      error: null,
+      inputTokens: response.usage?.inputTokens || null,
+      outputTokens: response.usage?.outputTokens || null,
+      fallbackCount: response.fallbackCount,
+      contextChars: sizeInfo.totalChars,
+      estimatedTokens: sizeInfo.estimatedTokens,
+    });
 
     const parsedResult = parseSolutionResponse(response.content);
-    console.log(`[solution] Parsed solution: confidence ${parsedResult.confidence}`);
+    console.log(`[solution] Parsed solution: confidence ${parsedResult.confidence}, ${parsedResult.affectedFiles.length} affected files`);
 
     const validationResult = validateSolution(parsedResult);
     if (!validationResult.valid) {
@@ -179,6 +199,9 @@ export async function runSolutionGeneration(analysisId: string): Promise<void> {
       model: response.model,
       duration,
       usage: response.usage,
+      attemptNumber,
+      sourceFileCount: selectedSourceFiles.length,
+      sourceChars: sizeInfo.sourceFilesChars,
     } as unknown as Record<string, unknown>);
 
     await updateAnalysis(analysisId, {

@@ -1,6 +1,8 @@
 import { ProviderName } from './providers/registry';
-import { MODEL_REGISTRY, ModelEntry } from './model-registry';
+import { MODEL_REGISTRY, ModelEntry, getModelById } from './model-registry';
 import { isProviderConfigured } from './providers/registry';
+
+export { getModelById };
 
 export type AnalysisTask =
   | 'relevant_file_discovery'
@@ -87,11 +89,37 @@ function rankModels(
   return scored;
 }
 
+const ROOT_CAUSEPreferred_MODELS: TaskModelEntry[] = [
+  // Qwen3 Coder 480B A35B first for root cause analysis
+  { provider: 'openrouter', model: 'qwen/qwen3-coder-plus' },
+  // Then other strong models
+  { provider: 'openrouter', model: 'moonshotai/kimi-k2.5' },
+  { provider: 'openrouter', model: 'moonshotai/kimi-k2-thinking' },
+  { provider: 'openrouter', model: 'qwen/qwen3-coder' },
+  { provider: 'openrouter', model: 'qwen/qwen3-coder-30b-a3b-instruct' },
+  { provider: 'openrouter', model: 'z-ai/glm-5.2' },
+];
+
 export function selectModelsForTask(
   task: string,
   estimatedTokens: number = 0,
   excludeModels: Set<string> = new Set()
 ): TaskModelEntry[] {
+  // Special handling for root_cause_analysis - use preferred OpenRouter models first
+  if (task === 'root_cause_analysis') {
+    const preferred = ROOT_CAUSEPreferred_MODELS.filter(
+      (m) => !excludeModels.has(`${m.provider}/${m.model}`)
+    );
+    const ranked = rankModels('complex_debugging', Math.max(estimatedTokens * 2, 32_000), excludeModels);
+    const remaining = ranked.filter(
+      (r) => !preferred.some((p) => p.provider === r.entry.provider && p.model === r.entry.model)
+    );
+    return [
+      ...preferred,
+      ...remaining.map((r) => ({ provider: r.entry.provider, model: r.entry.model })),
+    ];
+  }
+
   const taskType = TASK_TYPE_MAP[task as AnalysisTask] || 'general';
   const requiredContext = Math.max(estimatedTokens * 2, 32_000);
   const ranked = rankModels(taskType, requiredContext, excludeModels);

@@ -72,6 +72,36 @@ export function validateRootCause(result: RootCauseResult): ValidationResult {
     return { valid: false, error: 'Explanation too short' };
   }
 
+  if (result.rootCause.confidence < 0.3 && result.affectedFiles.length === 0) {
+    return {
+      valid: false,
+      error: `Insufficient analysis: confidence ${Math.round(result.rootCause.confidence * 100)}% with no affected files identified. The model failed to analyze the provided source code. Retry with fallback model.`,
+    };
+  }
+
+  const genericPatterns = [
+    /insufficient code provided/i,
+    /cannot determine/i,
+    /unable to identify/i,
+    /no clear root cause/i,
+    /more context needed/i,
+    /search the codebase/i,
+    /generic/i,
+  ];
+
+  const summaryLower = result.rootCause.summary.toLowerCase();
+  const explanationLower = result.rootCause.explanation.toLowerCase();
+  const isGeneric = genericPatterns.some(
+    (p) => p.test(result.rootCause.summary) || p.test(result.rootCause.explanation)
+  );
+
+  if (isGeneric && result.affectedFiles.length === 0) {
+    return {
+      valid: false,
+      error: `Generic response detected: "${result.rootCause.summary.slice(0, 100)}". The model did not perform actual code analysis. Retry with fallback model.`,
+    };
+  }
+
   for (const file of result.affectedFiles) {
     if (!file.path || typeof file.path !== 'string') {
       return { valid: false, error: 'Invalid affected file path' };

@@ -1,12 +1,52 @@
+'use client';
+
 import { Patch } from '@/types';
 import { Button } from '@/components/ui/button';
 import { DiffViewer } from '@/components/code/DiffViewer';
+import { toast } from 'sonner';
 
 interface PatchViewerProps {
   patch: Patch;
 }
 
+function formatPatchAsDiff(patch: Patch): string {
+  const lines: string[] = [];
+  lines.push(`# Patch Summary: ${patch.summary}`);
+  lines.push('');
+
+  for (const file of patch.files) {
+    lines.push(`--- a/${file.path}`);
+    lines.push(`+++ b/${file.path}`);
+    lines.push(`@@ -0,0 +1,${file.hunks.reduce((acc, h) => acc + h.lines.length, 0)} @@`);
+
+    for (const hunk of file.hunks) {
+      for (const line of hunk.lines) {
+        if (line.type === 'added') {
+          lines.push(`+${line.content}`);
+        } else if (line.type === 'removed') {
+          lines.push(`-${line.content}`);
+        } else {
+          lines.push(` ${line.content}`);
+        }
+      }
+    }
+    lines.push('');
+  }
+
+  return lines.join('\n');
+}
+
 export function PatchViewer({ patch }: PatchViewerProps) {
+  const handleCopy = async () => {
+    try {
+      const diff = formatPatchAsDiff(patch);
+      await navigator.clipboard.writeText(diff);
+      toast.success('Patch copied to clipboard');
+    } catch {
+      toast.error('Failed to copy patch');
+    }
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
@@ -17,6 +57,7 @@ export function PatchViewer({ patch }: PatchViewerProps) {
           variant="outline"
           size="sm"
           className="border-outline-variant/50 text-on-surface-variant hover:text-on-surface"
+          onClick={handleCopy}
         >
           Copy Patch
         </Button>

@@ -40,7 +40,7 @@ export function AnalysisDetailsSidebar({
           <p className="text-xs font-mono font-bold uppercase tracking-wider text-on-surface-variant mb-1">
             Repository
           </p>
-          <p className="text-sm font-mono text-on-surface">
+          <p className="text-sm font-mono text-on-surface" suppressHydrationWarning>
             {analysis.repository.fullName || 'Loading...'}
           </p>
         </div>
@@ -70,7 +70,7 @@ export function AnalysisDetailsSidebar({
                       : 'bg-surface-bright'
               }`}
             />
-            <p className="text-sm text-on-surface capitalize">
+            <p className="text-sm text-on-surface capitalize" suppressHydrationWarning>
               {record?.status?.replace(/_/g, ' ') || 'Loading...'}
             </p>
           </div>

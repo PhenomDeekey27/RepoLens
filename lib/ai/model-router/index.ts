@@ -4,7 +4,7 @@ import {
   ProviderName,
   isProviderConfigured,
 } from '../providers/registry';
-import { selectModelsForTask, getTestFailProvider, TaskModelEntry } from '../config';
+import { selectModelsForTask, getTestFailProvider, TaskModelEntry, getModelById } from '../config';
 
 export interface RunRequest {
   task: string;
@@ -17,6 +17,14 @@ export interface RunRequest {
 export interface RunResponse extends AICompletionResponse {
   fallbackCount: number;
   attemptedProviders: Array<{ provider: ProviderName; model: string; error?: string }>;
+}
+
+export interface ContextBudgetCheck {
+  fits: boolean;
+  estimatedTokens: number;
+  modelContextWindow: number;
+  utilizationPercent: number;
+  recommendation: 'proceed' | 'reduce_source' | 'reduce_metadata' | 'chunk_source';
 }
 
 type ErrorCategory =
@@ -80,7 +88,40 @@ function estimateTokensFromMessages(messages: AICompletionRequest['messages']): 
   return total;
 }
 
-function logAttempt(
+export function checkContextBudget(
+  messages: AICompletionRequest['messages'],
+  provider: ProviderName,
+  model: string
+): ContextBudgetCheck {
+  const estimatedTokens = estimateTokensFromMessages(messages);
+  const modelEntry = getModelById(`${provider}/${model}`);
+  const contextWindow = modelEntry?.contextWindow || 128_000;
+  const utilizationPercent = Math.round((estimatedTokens / contextWindow) * 100);
+
+  const SAFETY_THRESHOLD = 0.7;
+  const fits = estimatedTokens < contextWindow * SAFETY_THRESHOLD;
+
+  let recommendation: ContextBudgetCheck['recommendation'] = 'proceed';
+  if (!fits) {
+    if (utilizationPercent > 90) {
+      recommendation = 'chunk_source';
+    } else if (utilizationPercent > 75) {
+      recommendation = 'reduce_source';
+    } else {
+      recommendation = 'reduce_metadata';
+    }
+  }
+
+  return {
+    fits,
+    estimatedTokens,
+    modelContextWindow: contextWindow,
+    utilizationPercent,
+    recommendation,
+  };
+}
+
+export function logAttempt(
   task: string,
   provider: ProviderName,
   model: string,
@@ -180,6 +221,21 @@ export async function runWithFallback(request: RunRequest): Promise<RunResponse>
       }
 
       if (category === 'invalid_request') {
+        const isModelNotFound = error.message.includes('not a valid model') ||
+          error.message.includes('model not found') ||
+          error.message.includes('does not exist') ||
+          error.message.includes('Unknown Model') ||
+          error.message.includes('unknown model');
+
+        if (isModelNotFound) {
+          console.warn(
+            `[model-router] Model ${modelId} not found — skipping to next model`
+          );
+          fallbackCount++;
+          lastError = error;
+          continue;
+        }
+
         console.error(
           `[model-router] Invalid request error with ${entry.provider} — NOT fallback-worthy.`
         );

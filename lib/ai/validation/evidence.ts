@@ -1,5 +1,5 @@
 export interface EvidenceValidationResult {
-  status: 'evidence_found' | 'no_evidence';
+  status: 'evidence_found' | 'no_evidence' | 'insufficient_evidence';
   description: string;
   reason?: string;
   confidence?: number;
@@ -11,6 +11,7 @@ export interface EvidenceValidationResult {
     explanation: string;
     type: 'direct' | 'supporting';
   }>;
+  requiredFiles?: string[];
 }
 
 export interface ValidationResult {
@@ -23,7 +24,31 @@ export function parseEvidenceResponse(content: string): EvidenceValidationResult
     const parsed = JSON.parse(content);
 
     const hasEvidence = Array.isArray(parsed.evidence) && parsed.evidence.length > 0;
-    const status = parsed.status === 'no_evidence' || !hasEvidence ? 'no_evidence' : 'evidence_found';
+    let status: EvidenceValidationResult['status'] = 'evidence_found';
+
+    if (parsed.status === 'no_evidence' || parsed.status === 'insufficient_evidence') {
+      status = parsed.status;
+    } else if (!hasEvidence) {
+      status = 'no_evidence';
+    }
+
+    const genericPatterns = [
+      /insufficient/i,
+      /unable to find/i,
+      /no concrete/i,
+      /cannot determine/i,
+      /generic/i,
+    ];
+
+    if (hasEvidence) {
+      const allGeneric = parsed.evidence.every((ev: { explanation?: string }) => {
+        const exp = (ev.explanation || '').toLowerCase();
+        return genericPatterns.some((p) => p.test(exp));
+      });
+      if (allGeneric && parsed.evidence.length <= 2) {
+        status = 'insufficient_evidence';
+      }
+    }
 
     return {
       status,
@@ -31,6 +56,7 @@ export function parseEvidenceResponse(content: string): EvidenceValidationResult
       reason: typeof parsed.reason === 'string' ? parsed.reason : undefined,
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : undefined,
       evidence: hasEvidence ? parsed.evidence : [],
+      requiredFiles: Array.isArray(parsed.requiredFiles) ? parsed.requiredFiles : undefined,
     };
   } catch {
     return {
@@ -47,7 +73,7 @@ export function validateEvidence(result: EvidenceValidationResult): ValidationRe
     return { valid: false, error: 'Description too short' };
   }
 
-  if (result.status === 'no_evidence') {
+  if (result.status === 'no_evidence' || result.status === 'insufficient_evidence') {
     return { valid: true };
   }
 

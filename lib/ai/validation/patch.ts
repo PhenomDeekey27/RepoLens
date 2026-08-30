@@ -41,7 +41,27 @@ export function validatePatch(result: PatchResult): ValidationResult {
     return { valid: false, error: 'Summary too short' };
   }
 
-  if (!Array.isArray(result.files) || result.files.length === 0) {
+  if (!Array.isArray(result.files)) {
+    return { valid: false, error: 'Invalid files array' };
+  }
+
+  if (result.files.length === 0) {
+    const noChangeIndicators = [
+      /no (code )?change/i,
+      /not (applicable|required|needed)/i,
+      /no patch/i,
+      /no modification/i,
+      /insufficient/i,
+      /unable to generate/i,
+      /cannot (safely )?generate/i,
+    ];
+
+    const summaryIndicatesNoChange = noChangeIndicators.some((p) => p.test(result.summary));
+
+    if (summaryIndicatesNoChange) {
+      return { valid: true };
+    }
+
     return { valid: false, error: 'No files in patch' };
   }
 

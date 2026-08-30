@@ -98,7 +98,7 @@ export interface RootCause {
 }
 
 export interface Evidence {
-  status?: 'evidence_found' | 'no_evidence';
+  status?: 'evidence_found' | 'no_evidence' | 'insufficient_evidence';
   description: string;
   reason?: string;
   confidence?: number;
@@ -110,6 +110,7 @@ export interface Evidence {
     explanation: string;
     type: 'direct' | 'supporting';
   }>;
+  requiredFiles?: string[];
 }
 
 export interface CodeReference {
@@ -276,7 +277,8 @@ export interface AnalysisArtifactRecord {
     | 'root_cause'
     | 'evidence'
     | 'solution'
-    | 'patch';
+    | 'patch'
+    | 'model_execution';
   data: Record<string, unknown>;
   created_at: string;
 }
@@ -336,7 +338,7 @@ export interface RootCauseResult {
 }
 
 export interface EvidenceResult {
-  status: 'evidence_found' | 'no_evidence';
+  status: 'evidence_found' | 'no_evidence' | 'insufficient_evidence';
   description: string;
   reason?: string;
   confidence?: number;
@@ -348,6 +350,7 @@ export interface EvidenceResult {
     explanation: string;
     type: 'direct' | 'supporting';
   }>;
+  requiredFiles?: string[];
 }
 
 export interface SolutionResult {
