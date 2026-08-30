@@ -3,45 +3,45 @@ import { createClient } from '@/lib/supabase/server';
 import { Repository, Issue } from '@/types';
 
 export async function POST(request: Request) {
-  const supabase = await createClient();
-
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
-    return NextResponse.json(
-      { error: 'Not authenticated' },
-      { status: 401 }
-    );
-  }
-
-  let body: { repository?: Repository; issue?: Issue };
   try {
-    body = await request.json();
-  } catch {
-    return NextResponse.json(
-      { error: 'Invalid request body' },
-      { status: 400 }
-    );
-  }
+    const supabase = await createClient();
 
-  const { repository, issue } = body;
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return NextResponse.json(
+        { error: 'Not authenticated' },
+        { status: 401 }
+      );
+    }
 
-  if (!repository || !issue) {
-    return NextResponse.json(
-      { error: 'repository and issue are required' },
-      { status: 400 }
-    );
-  }
+    let body: { repository?: Repository; issue?: Issue };
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      );
+    }
 
-  if (!repository.fullName || !repository.owner) {
-    return NextResponse.json(
-      { error: 'repository.fullName and repository.owner are required' },
-      { status: 400 }
-    );
-  }
+    const { repository, issue } = body;
 
-  const [owner, repo] = repository.fullName.split('/');
+    if (!repository || !issue) {
+      return NextResponse.json(
+        { error: 'repository and issue are required' },
+        { status: 400 }
+      );
+    }
 
-  try {
+    if (!repository.fullName || !repository.owner) {
+      return NextResponse.json(
+        { error: 'repository.fullName and repository.owner are required' },
+        { status: 400 }
+      );
+    }
+
+    const [owner, repo] = repository.fullName.split('/');
+
     const { data: analysis, error: insertError } = await supabase
       .from('analyses')
       .insert({

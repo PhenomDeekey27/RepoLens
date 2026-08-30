@@ -119,8 +119,14 @@ export default function NewAnalysisPage() {
       });
 
       if (!createResponse.ok) {
-        const errData = await createResponse.json();
-        throw new Error(errData.error || 'Failed to create analysis');
+        let errorMessage = 'Failed to create analysis';
+        try {
+          const errData = await createResponse.json();
+          errorMessage = errData.error || errorMessage;
+        } catch {
+          errorMessage = `Server error (${createResponse.status})`;
+        }
+        throw new Error(errorMessage);
       }
 
       const { analysisId } = await createResponse.json();
@@ -138,8 +144,14 @@ export default function NewAnalysisPage() {
       });
 
       if (!runResponse.ok) {
-        const errData = await runResponse.json();
-        throw new Error(errData.error || 'Failed to start analysis runner');
+        let errorMessage = 'Failed to start analysis runner';
+        try {
+          const errData = await runResponse.json();
+          errorMessage = errData.error || errorMessage;
+        } catch {
+          errorMessage = `Server error (${runResponse.status})`;
+        }
+        throw new Error(errorMessage);
       }
 
       toast.success('Analysis created! Initializing investigation...');
