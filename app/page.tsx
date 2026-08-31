@@ -25,24 +25,6 @@ export default async function Home() {
         <FeatureSteps />
         <ProductPreview />
       </main>
-
-      <footer className="px-6 py-8 border-t border-outline-variant/50">
-        <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-on-surface-variant">
-              © 2026 IssuePilot. All rights reserved.
-            </span>
-          </div>
-          <div className="flex items-center gap-4">
-            <a href="#" className="text-xs text-on-surface-variant hover:text-on-surface transition-colors">
-              Privacy
-            </a>
-            <a href="#" className="text-xs text-on-surface-variant hover:text-on-surface transition-colors">
-              Terms
-            </a>
-          </div>
-        </div>
-      </footer>
     </div>
   );
 }

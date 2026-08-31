@@ -9,6 +9,10 @@ interface HeroProps {
 }
 
 export function Hero({ user }: HeroProps) {
+  const scrollToHowItWorks = () => {
+    document.getElementById('how-it-works')?.scrollIntoView({ behavior: 'smooth' });
+  };
+
   return (
     <section className="flex flex-col items-center justify-center px-4 py-16 md:py-24 text-center relative overflow-hidden">
       <div className="absolute inset-0 pointer-events-none">
@@ -56,7 +60,8 @@ export function Hero({ user }: HeroProps) {
           <Button
             variant="outline"
             size="lg"
-            className="border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container h-11"
+            className="border-outline-variant text-on-surface-variant hover:text-on-surface hover:bg-surface-container h-11 cursor-pointer"
+            onClick={scrollToHowItWorks}
           >
             See how it works
           </Button>

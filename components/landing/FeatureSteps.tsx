@@ -25,10 +25,15 @@ export function FeatureSteps() {
       title: 'Generate Patch',
       description: 'Get an actionable code fix',
     },
+    {
+      icon: '⊞',
+      title: 'Create Branch & PR',
+      description: 'Auto-create fix branch and pull request',
+    },
   ];
 
   return (
-    <section className="px-4 py-12 md:py-16 max-w-4xl mx-auto">
+    <section id="how-it-works" className="px-4 py-12 md:py-16 max-w-4xl mx-auto">
       <h2 className="text-xl font-semibold text-on-surface text-center mb-8">
         How it works
       </h2>
