@@ -30,7 +30,7 @@ export function Hero({ user }: HeroProps) {
         </h1>
 
         <p className="max-w-xl text-lg text-on-surface-variant mb-8 leading-relaxed">
-          Connect a repository, select an issue, and let RepoLens trace the relevant code, identify the root cause, and generate an actionable patch.
+          Connect a repository, select an issue, and let IssuePilot trace the relevant code, identify the root cause, and generate an actionable patch.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-4 justify-center">

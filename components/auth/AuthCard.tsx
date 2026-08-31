@@ -40,8 +40,8 @@ export function AuthCard() {
 
         <div className="relative z-10">
           <div className="flex flex-col items-center mb-8">
-            <Image src="/Logo.png" alt="RepoLens" width={64} height={64} className="rounded-lg" />
-            <h1 className="text-xl font-semibold text-on-surface mt-4 mb-2">RepoLens</h1>
+            <Image src="/Logo.png" alt="IssuePilot" width={64} height={64} className="rounded-lg" />
+            <h1 className="text-xl font-semibold text-on-surface mt-4 mb-2">IssuePilot</h1>
             <p className="text-sm text-on-surface-variant text-center">
               Connect your GitHub account
             </p>
@@ -54,7 +54,7 @@ export function AuthCard() {
           )}
 
           <p className="text-sm text-on-surface-variant text-center mb-6 leading-relaxed">
-            RepoLens needs GitHub access to inspect repositories and issues. We only request read permissions.
+            IssuePilot needs GitHub access to inspect repositories and issues. We only request read permissions.
           </p>
 
           <div className="mb-6 p-4 rounded-lg border border-outline-variant/50 glass">

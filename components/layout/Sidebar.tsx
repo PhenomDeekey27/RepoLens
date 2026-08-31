@@ -42,8 +42,8 @@ export function Sidebar({ className, user }: SidebarProps) {
       )}
     >
       <Link href="/" className="flex items-center gap-2 px-4 py-4 pt-14 md:pt-4">
-        <Image src="/Logo.png" alt="RepoLens" width={32} height={32} className="rounded" />
-        <span className="text-sm font-semibold text-on-surface">RepoLens</span>
+        <Image src="/Logo.png" alt="IssuePilot" width={32} height={32} className="rounded" />
+        <span className="text-sm font-semibold text-on-surface">IssuePilot</span>
       </Link>
 
       <div className="px-3 py-2">

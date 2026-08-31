@@ -30,7 +30,7 @@ export default async function Home() {
         <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <span className="text-xs text-on-surface-variant">
-              © 2026 RepoLens. All rights reserved.
+              © 2026 IssuePilot. All rights reserved.
             </span>
           </div>
           <div className="flex items-center gap-4">

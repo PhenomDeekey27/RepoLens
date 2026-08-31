@@ -9,7 +9,7 @@ export function ProductPreview() {
             <div className="w-3 h-3 rounded-full bg-green-500/80" />
           </div>
           <span className="text-xs font-mono text-on-surface-variant ml-2">
-            RepoLens — Investigation Workspace
+            IssuePilot — Investigation Workspace
           </span>
         </div>
 

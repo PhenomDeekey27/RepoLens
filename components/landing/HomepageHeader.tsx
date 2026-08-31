@@ -41,8 +41,8 @@ export function HomepageHeader({ user }: HomepageHeaderProps) {
   return (
     <header className="flex items-center justify-between px-4 md:px-6 py-3 md:py-4 glass border-b border-outline-variant">
       <Link href="/" className="flex items-center gap-2">
-        <Image src="/Logo.png" alt="RepoLens" width={28} height={28} className="rounded" />
-        <span className="text-sm font-semibold text-on-surface">RepoLens</span>
+        <Image src="/Logo.png" alt="IssuePilot" width={28} height={28} className="rounded" />
+        <span className="text-sm font-semibold text-on-surface">IssuePilot</span>
       </Link>
 
       <div className="flex items-center gap-4">

@@ -13,7 +13,7 @@ export function FeatureSteps() {
     {
       icon: '⊕',
       title: 'Trace Code',
-      description: 'RepoLens identifies relevant files',
+      description: 'IssuePilot identifies relevant files',
     },
     {
       icon: '⊙',

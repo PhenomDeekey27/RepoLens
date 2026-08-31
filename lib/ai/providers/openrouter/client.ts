@@ -31,7 +31,7 @@ export class OpenRouterProvider implements AIProvider {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${this.config.apiKey}`,
         'HTTP-Referer': 'https://repolens.app',
-        'X-Title': 'RepoLens',
+        'X-Title': 'IssuePilot',
       },
       body: JSON.stringify(body),
     });

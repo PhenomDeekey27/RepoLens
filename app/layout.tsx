@@ -14,8 +14,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "RepoLens — AI-Powered GitHub Issue Investigation",
-  description: "Connect a repository, select an issue, and let RepoLens trace the relevant code, identify the root cause, and generate an actionable patch.",
+  title: "IssuePilot — AI-Powered GitHub Issue Investigation",
+  description: "Connect a repository, select an issue, and let IssuePilot trace the relevant code, identify the root cause, and generate an actionable patch.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
