@@ -152,6 +152,52 @@ export interface PatchHunk {
   lines: CodeLine[];
 }
 
+export type PatchFileOperation = 'modify' | 'create' | 'delete';
+
+export interface StructuredPatchFile {
+  path: string;
+  operation: PatchFileOperation;
+  summary: string;
+  reason: string;
+  oldContent?: string;
+  newContent?: string;
+  diff: string;
+}
+
+export interface StructuredPatch {
+  summary: string;
+  files: StructuredPatchFile[];
+}
+
+export interface ApplyFixResult {
+  success: boolean;
+  branch: string;
+  commitSha: string;
+  commitMessage: string;
+  filesChanged: string[];
+  repositoryFullName: string;
+  defaultBranch: string;
+  htmlUrl?: string;
+}
+
+export interface ApplyFixError {
+  success: false;
+  error: string;
+  code: ApplyFixErrorCode;
+}
+
+export type ApplyFixErrorCode =
+  | 'auth_failure'
+  | 'permission_denied'
+  | 'branch_exists'
+  | 'branch_creation_failed'
+  | 'file_changed'
+  | 'patch_validation_failed'
+  | 'commit_failed'
+  | 'repository_not_found'
+  | 'token_expired'
+  | 'insufficient_permissions';
+
 export interface Analysis {
   id: string;
   repository: Repository;
@@ -247,6 +293,12 @@ export interface AnalysisRecord {
     balanced: string;
     deep: string;
   } | null;
+  patch_status: 'none' | 'pending' | 'applied' | 'failed' | null;
+  created_branch: string | null;
+  commit_sha: string | null;
+  commit_message: string | null;
+  changed_files: string[] | null;
+  applied_at: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;

@@ -160,6 +160,7 @@ export default function InvestigationPage() {
   const [startingPatch, setStartingPatch] = useState(false);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const prevStatusRef = useRef<string | null>(null);
+  const [pendingStart, setPendingStart] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -208,6 +209,12 @@ export default function InvestigationPage() {
         ai_tokens_output: null,
         ai_duration_ms: null,
         model_config: null,
+        patch_status: null,
+        created_branch: null,
+        commit_sha: null,
+        commit_message: null,
+        changed_files: null,
+        applied_at: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         completed_at: null,
@@ -256,8 +263,13 @@ export default function InvestigationPage() {
 
   useEffect(() => {
     if (!record) return;
-    const shouldPoll = ['queued', 'initializing', 'indexing', 'relevant_file_discovery', 'relevant_files_fetch', 'relevant_files_discovery', 'ready_for_analysis', 'relevant_files_ready', 'analyzing'].includes(record.status);
+
+    const isActive = ['queued', 'initializing', 'indexing', 'relevant_file_discovery', 'relevant_files_fetch', 'relevant_files_discovery', 'analyzing'].includes(record.status);
+    const isAtStage = ['ready_for_analysis', 'relevant_files_ready', 'root_cause_complete', 'evidence_complete', 'solution_complete'].includes(record.status);
+    const shouldPoll = pendingStart || isActive || isAtStage;
     if (!shouldPoll) return;
+
+    const pollInterval = (pendingStart || isActive) ? 2000 : 4000;
 
     let cancelled = false;
     const poll = async () => {
@@ -271,6 +283,7 @@ export default function InvestigationPage() {
         setRecord(data.analysis);
 
         if (prevStatus && prevStatus !== data.analysis.status) {
+          setPendingStart(false);
           if (data.analysis.status === 'ready_for_analysis') {
             toast.success('Repository index ready!');
           } else if (data.analysis.status === 'relevant_files_ready') {
@@ -284,6 +297,7 @@ export default function InvestigationPage() {
           } else if (data.analysis.status === 'completed') {
             toast.success('Analysis complete!');
           } else if (data.analysis.status === 'failed') {
+            setPendingStart(false);
             toast.error(data.analysis.error_message || 'Analysis failed');
           }
         }
@@ -291,12 +305,12 @@ export default function InvestigationPage() {
       } catch { /* ignore */ }
     };
 
-    pollRef.current = setInterval(poll, 5000);
+    pollRef.current = setInterval(poll, pollInterval);
     return () => {
       cancelled = true;
       if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
     };
-  }, [record?.status, analysisId]);
+  }, [record?.status, analysisId, pendingStart]);
 
   useEffect(() => {
     if (record?.status === 'ready_for_analysis' || record?.status === 'relevant_files_ready' || record?.status === 'root_cause_complete' || record?.status === 'evidence_complete' || record?.status === 'solution_complete' || record?.status === 'completed') {
@@ -396,6 +410,7 @@ export default function InvestigationPage() {
 
   const handleStartDiscovery = async () => {
     setStartingDiscovery(true);
+    setPendingStart(true);
     try {
       const response = await fetch(`/api/analyses/${analysisId}/relevant-files`, { method: 'POST' });
       if (!response.ok) {
@@ -414,6 +429,7 @@ export default function InvestigationPage() {
 
   const handleStartRootCause = async (isRerun = false) => {
     setStartingRootCause(true);
+    setPendingStart(true);
     try {
       const response = await fetch(`/api/analyses/${analysisId}/root-cause`, { method: 'POST' });
       if (!response.ok) {
@@ -432,6 +448,7 @@ export default function InvestigationPage() {
 
   const handleStartEvidence = async (isRerun = false) => {
     setStartingEvidence(true);
+    setPendingStart(true);
     try {
       const response = await fetch(`/api/analyses/${analysisId}/evidence`, { method: 'POST' });
       if (!response.ok) {
@@ -450,6 +467,7 @@ export default function InvestigationPage() {
 
   const handleStartSolution = async (isRerun = false) => {
     setStartingSolution(true);
+    setPendingStart(true);
     try {
       const response = await fetch(`/api/analyses/${analysisId}/solution`, { method: 'POST' });
       if (!response.ok) {
@@ -468,6 +486,7 @@ export default function InvestigationPage() {
 
   const handleStartPatch = async (isRerun = false) => {
     setStartingPatch(true);
+    setPendingStart(true);
     try {
       const response = await fetch(`/api/analyses/${analysisId}/patch`, { method: 'POST' });
       if (!response.ok) {

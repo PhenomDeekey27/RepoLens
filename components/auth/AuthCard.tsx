@@ -10,6 +10,7 @@ const permissions = [
   'Read repositories',
   'Read issues',
   'Read repository files',
+  'Create fix branches and commits',
 ];
 
 export function AuthCard() {
@@ -24,6 +25,7 @@ export function AuthCard() {
       provider: 'github',
       options: {
         redirectTo: `${window.location.origin}/auth/callback`,
+        scopes: 'repo read:user user:email',
       },
     });
     if (authError) {

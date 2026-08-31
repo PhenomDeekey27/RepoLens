@@ -50,12 +50,27 @@ export function parseEvidenceResponse(content: string): EvidenceValidationResult
       }
     }
 
+    const cleanedEvidence = hasEvidence
+      ? parsed.evidence.map((ev: Record<string, unknown>) => ({
+          file: typeof ev.file === 'string' ? ev.file : '',
+          lineStart: typeof ev.lineStart === 'number' ? ev.lineStart : 1,
+          lineEnd: typeof ev.lineEnd === 'number' ? ev.lineEnd : ev.lineStart || 1,
+          code: typeof ev.code === 'string' ? ev.code : '',
+          explanation: typeof ev.explanation === 'string' && ev.explanation.trim()
+            ? ev.explanation.trim()
+            : typeof ev.reason === 'string' && ev.reason.trim()
+              ? ev.reason.trim()
+              : 'Evidence found at this location',
+          type: ev.type === 'direct' || ev.type === 'supporting' ? ev.type : 'supporting',
+        }))
+      : [];
+
     return {
       status,
       description: typeof parsed.description === 'string' ? parsed.description : 'No description provided',
       reason: typeof parsed.reason === 'string' ? parsed.reason : undefined,
       confidence: typeof parsed.confidence === 'number' ? parsed.confidence : undefined,
-      evidence: hasEvidence ? parsed.evidence : [],
+      evidence: cleanedEvidence,
       requiredFiles: Array.isArray(parsed.requiredFiles) ? parsed.requiredFiles : undefined,
     };
   } catch {
@@ -81,26 +96,15 @@ export function validateEvidence(result: EvidenceValidationResult): ValidationRe
     return { valid: false, error: 'No evidence provided' };
   }
 
-  for (const ev of result.evidence) {
-    if (!ev.file || typeof ev.file !== 'string') {
-      return { valid: false, error: 'Invalid evidence file path' };
-    }
-    if (typeof ev.lineStart !== 'number' || typeof ev.lineEnd !== 'number') {
-      return { valid: false, error: 'Invalid evidence line numbers' };
-    }
-    if (ev.lineStart < 1 || ev.lineEnd < ev.lineStart) {
-      return { valid: false, error: 'Invalid evidence line range' };
-    }
-    if (!ev.code || typeof ev.code !== 'string') {
-      return { valid: false, error: 'Missing evidence code' };
-    }
-    if (!ev.explanation || typeof ev.explanation !== 'string') {
-      return { valid: false, error: 'Missing evidence explanation' };
-    }
-    if (ev.type !== 'direct' && ev.type !== 'supporting') {
-      return { valid: false, error: 'Invalid evidence type' };
-    }
+  const validEntries = result.evidence.filter(
+    (ev) => ev.file && typeof ev.file === 'string' && ev.code && typeof ev.code === 'string'
+  );
+
+  if (validEntries.length === 0) {
+    return { valid: false, error: 'No valid evidence entries found' };
   }
+
+  result.evidence = validEntries;
 
   return { valid: true };
 }

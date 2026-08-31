@@ -88,11 +88,20 @@ export function AnalysisTabContent({
       )}
 
       {activeTab === 'solution' && analysis.solution && (
-        <SolutionPanel solution={analysis.solution} />
+        <SolutionPanel solution={analysis.solution} rootCause={analysis.rootCause} />
       )}
 
       {activeTab === 'patch' && analysis.patch && (
-        <PatchViewer patch={analysis.patch} />
+        <PatchViewer
+          patch={analysis.patch}
+          analysisId={record.id}
+          repositoryFullName={record.repository_full_name}
+          issueNumber={record.issue_number}
+          patchStatus={record.patch_status}
+          createdBranch={record.created_branch}
+          commitSha={record.commit_sha}
+          changedFiles={record.changed_files}
+        />
       )}
     </div>
   );
