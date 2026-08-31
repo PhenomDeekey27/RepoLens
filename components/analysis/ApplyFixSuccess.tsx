@@ -9,6 +9,7 @@ interface ApplyFixSuccessProps {
   filesChanged: string[];
   commitMessage: string;
   htmlUrl?: string;
+  pullRequestUrl?: string;
 }
 
 export function ApplyFixSuccess({
@@ -17,6 +18,7 @@ export function ApplyFixSuccess({
   repositoryFullName,
   filesChanged,
   htmlUrl,
+  pullRequestUrl,
 }: ApplyFixSuccessProps) {
   const shortSha = commitSha.substring(0, 7);
 
@@ -66,22 +68,39 @@ export function ApplyFixSuccess({
         )}
       </div>
 
-      {htmlUrl && (
-        <a
-          href={htmlUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex"
-        >
-          <Button
-            variant="outline"
-            size="sm"
-            className="border-green-500/50 text-green-400 hover:text-green-300 hover:border-green-400/50"
+      <div className="flex gap-3">
+        {pullRequestUrl && (
+          <a
+            href={pullRequestUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex"
           >
-            View Branch on GitHub →
-          </Button>
-        </a>
-      )}
+            <Button
+              size="sm"
+              className="gradient-primary text-white hover:gradient-primary-hover font-medium"
+            >
+              View Pull Request →
+            </Button>
+          </a>
+        )}
+        {htmlUrl && (
+          <a
+            href={htmlUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex"
+          >
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-green-500/50 text-green-400 hover:text-green-300 hover:border-green-400/50"
+            >
+              View Branch on GitHub →
+            </Button>
+          </a>
+        )}
+      </div>
     </div>
   );
 }

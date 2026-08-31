@@ -5,6 +5,7 @@ import {
   getBranchExists,
   getFileContent,
   createOrUpdateFile,
+  createPullRequest,
 } from '@/lib/github/write';
 
 interface ApplyPatchContext {
@@ -170,6 +171,24 @@ export async function applyPatchToGitHub(
   const commitMessage = generateCommitMessage(patch, issueNumber);
   const branchUrl = `https://github.com/${owner}/${repo}/tree/${branchName}`;
 
+  let pullRequestUrl: string | undefined;
+  try {
+    const prTitle = `fix: resolve issue #${issueNumber}`;
+    const prBody = `## Summary\n\n${patch.summary}\n\n## Changes\n\n${appliedFiles.map((f) => `- \`${f}\``).join('\n')}\n\n## Related Issue\n\nCloses #${issueNumber}`;
+    const pr = await createPullRequest(
+      token,
+      owner,
+      repo,
+      prTitle,
+      prBody,
+      branchName,
+      defaultBranch.name
+    );
+    pullRequestUrl = pr.html_url;
+  } catch {
+    // PR creation is optional; branch is still valid
+  }
+
   return {
     success: true,
     branch: branchName,
@@ -179,5 +198,6 @@ export async function applyPatchToGitHub(
     repositoryFullName: `${owner}/${repo}`,
     defaultBranch: defaultBranch.name,
     htmlUrl: branchUrl,
+    pullRequestUrl,
   };
 }

@@ -178,6 +178,7 @@ export interface ApplyFixResult {
   repositoryFullName: string;
   defaultBranch: string;
   htmlUrl?: string;
+  pullRequestUrl?: string;
 }
 
 export interface ApplyFixError {

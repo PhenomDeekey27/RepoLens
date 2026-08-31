@@ -276,6 +276,7 @@ export function PatchViewer({
           filesChanged={applyResult.filesChanged}
           commitMessage={applyResult.commitMessage}
           htmlUrl={applyResult.htmlUrl}
+          pullRequestUrl={applyResult.pullRequestUrl}
         />
       )}
     </div>

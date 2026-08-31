@@ -130,6 +130,7 @@ export async function POST(
       commit_message: result.commitMessage,
       changed_files: result.filesChanged,
       applied_at: new Date().toISOString(),
+      pull_request_url: result.pullRequestUrl || null,
     })
     .eq('id', id);
 

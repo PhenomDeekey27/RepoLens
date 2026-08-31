@@ -259,3 +259,33 @@ export async function updateRef(
     },
   });
 }
+
+interface GitHubPullRequest {
+  number: number;
+  html_url: string;
+  title: string;
+  body: string;
+  state: string;
+  created_at: string;
+}
+
+export async function createPullRequest(
+  token: string,
+  owner: string,
+  repo: string,
+  title: string,
+  body: string,
+  head: string,
+  base: string
+): Promise<GitHubPullRequest> {
+  return githubFetch<GitHubPullRequest>(`/repos/${owner}/${repo}/pulls`, {
+    token,
+    method: 'POST',
+    body: {
+      title,
+      body,
+      head,
+      base,
+    },
+  });
+}
