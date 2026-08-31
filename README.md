@@ -1,6 +1,10 @@
 # IssuePilot
 
-Application Deployed Link : https://issuepilot-nine.vercel.app
+## 🔗 Links
+
+- **Live Demo:**  https://issuepilot-nine.vercel.app/
+- **Source Code:** https://github.com/PhenomDeekey27/IssuePilot
+- **Demo Video:**  https://drive.google.com/file/d/1P1AcylAB4JAaG7QHiw6dKXRNJWhYIgvd/view?pli=1
 
 **AI-powered GitHub issue investigation — from issue to pull request.**
 
