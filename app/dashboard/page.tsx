@@ -7,6 +7,51 @@ import { WelcomeToast } from '@/components/dashboard/WelcomeToast';
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/server';
+import { Analysis, AnalysisRecord } from '@/types';
+
+function recordToAnalysis(record: AnalysisRecord): Analysis {
+  return {
+    id: record.id,
+    repository: {
+      id: record.repository_id,
+      name: record.repository_name,
+      fullName: record.repository_full_name,
+      description: '',
+      language: '',
+      stars: 0,
+      forks: 0,
+      lastUpdated: record.updated_at,
+      private: false,
+      owner: record.repository_owner,
+    },
+    issue: {
+      id: '',
+      number: record.issue_number,
+      title: record.issue_title,
+      body: '',
+      state: 'open',
+      labels: [],
+      assignees: [],
+      createdAt: record.created_at,
+      updatedAt: record.updated_at,
+      closedAt: null,
+      comments: 0,
+      htmlUrl: '',
+      userLogin: '',
+      repositoryId: record.repository_id,
+    },
+    status: record.status as Analysis['status'],
+    currentStage: record.current_stage as Analysis['currentStage'],
+    stages: [],
+    relevantFiles: [],
+    rootCause: null,
+    evidence: null,
+    solution: null,
+    patch: null,
+    startedAt: record.created_at,
+    completedAt: record.completed_at,
+  };
+}
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -21,6 +66,10 @@ export default async function DashboardPage() {
     : null;
 
   let repoCount: string | number = '—';
+  let issuesAnalyzed = 0;
+  let patchesGenerated = 0;
+  let recentAnalyses: Analysis[] = [];
+
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (session?.provider_token) {
@@ -39,6 +88,30 @@ export default async function DashboardPage() {
     // Keep default
   }
 
+  if (user) {
+    try {
+      const { data: analyses } = await supabase
+        .from('analyses')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+
+      if (analyses) {
+        issuesAnalyzed = analyses.filter(
+          (a) => a.status === 'completed'
+        ).length;
+
+        patchesGenerated = analyses.filter(
+          (a) => a.patch_status && a.patch_status !== 'none'
+        ).length;
+
+        recentAnalyses = analyses.slice(0, 5).map(recordToAnalysis);
+      }
+    } catch {
+      // Keep defaults on error
+    }
+  }
+
   return (
     <AppShell user={githubUser}>
       <Suspense>
@@ -48,10 +121,10 @@ export default async function DashboardPage() {
         <DashboardHeader userName={githubUser?.login || 'developer'} />
         <StatsGrid stats={[
           { label: 'Repositories', value: repoCount },
-          { label: 'Issues Analyzed', value: 0 },
-          { label: 'Patches Generated', value: 0 },
+          { label: 'Issues Analyzed', value: issuesAnalyzed },
+          { label: 'Patches Generated', value: patchesGenerated },
         ]} />
-        <RecentAnalyses analyses={[]} />
+        <RecentAnalyses analyses={recentAnalyses} />
 
         <div className="mt-8">
           <h2 className="text-lg font-semibold text-on-surface mb-4">
