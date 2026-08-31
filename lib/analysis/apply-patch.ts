@@ -19,7 +19,7 @@ interface ApplyPatchContext {
 
 function generateBranchName(issueNumber: number): string {
   const shortId = Math.random().toString(36).substring(2, 8);
-  return `repolens/fix/issue-${issueNumber}-${shortId}`;
+  return `issuepilot/fix/issue-${issueNumber}-${shortId}`;
 }
 
 function generateCommitMessage(patch: Patch, issueNumber: number): string {
